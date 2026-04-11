@@ -406,8 +406,9 @@ const CoordinatorDashboard = () => {
                     `You have been assigned as an examiner for the *${deptCode}* Department.%0A%0A` +
                     `*VOUCHER DETAILS:*%0A` +
                     `• *Access Code:* ${member.voucherCode}%0A` +
+                    `• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}%0A` +
                     `• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}%0A%0A` +
-                    `_Please present this code at the canteen counter._`;
+                    `_Please use this code for accessing the canteen services._`;
 
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
     window.open(whatsappUrl, '_blank');

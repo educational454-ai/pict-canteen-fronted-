@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket, MessageSquare } from 'lucide-react';
+import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket, MessageSquare, AlertTriangle, TrendingUp, UserCheck } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -36,7 +36,6 @@ const CoordinatorDashboard = () => {
   const userName = sessionStorage.getItem('userName') || 'Coordinator'; 
   const deptName = sessionStorage.getItem('deptName') || 'Department';
 
-  // 🚀 LOGIC: Determine available years based on B.Tech vs M.Tech
   const isMTech = deptName.includes('M.Tech');
   const availableYears = isMTech 
     ? ["1st Yr (Regular)", "1st Yr (Backlog)", "2nd Yr (Regular)", "2nd Yr (Backlog)"]
@@ -56,32 +55,12 @@ const CoordinatorDashboard = () => {
     validTill: new Date().toISOString().split('T')[0]
   });
 
-  useEffect(() => {
-    sessionStorage.setItem('activeCoordinatorTab', activeTab);
-  }, [activeTab]);
+  useEffect(() => { sessionStorage.setItem('activeCoordinatorTab', activeTab); }, [activeTab]);
+  useEffect(() => { if (deptId) { fetchFaculty(); fetchOrders(); fetchGuests(); } }, [deptId]);
 
-  useEffect(() => { 
-    if (deptId) {
-      fetchFaculty(); 
-      fetchOrders(); 
-      fetchGuests();
-    }
-  }, [deptId]);
-
-  const fetchFaculty = async () => {
-    try { const res = await API.get(`/faculty/department/${deptId}`); setFaculty(res.data); } 
-    catch (err) { console.error("Error", err); }
-  };
-
-  const fetchGuests = async () => {
-    try { const res = await API.get(`/guests/department/${deptId}`); setGuests(res.data); } 
-    catch (err) { console.error("Error fetching guests", err); }
-  };
-
-  const fetchOrders = async () => {
-    try { const res = await API.get(`/orders/department/${deptId}`); setOrders(res.data); } 
-    catch (err) { console.error("Error fetching orders", err); }
-  };
+  const fetchFaculty = async () => { try { const res = await API.get(`/faculty/department/${deptId}`); setFaculty(res.data); } catch (err) { console.error("Error", err); } };
+  const fetchGuests = async () => { try { const res = await API.get(`/guests/department/${deptId}`); setGuests(res.data); } catch (err) { console.error("Error fetching guests", err); } };
+  const fetchOrders = async () => { try { const res = await API.get(`/orders/department/${deptId}`); setOrders(res.data); } catch (err) { console.error("Error fetching orders", err); } };
 
   const totalExaminers = faculty.length;
   const now = new Date();
@@ -111,6 +90,18 @@ const CoordinatorDashboard = () => {
 
   const totalSpent = filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
   const totalOrders = filteredOrders.length;
+
+  // 🚀 NEW COORDINATOR ANALYTICS 1: Year-wise spending breakdown
+  const yearWiseStats = availableYears.map(year => {
+    const total = filteredOrders.filter(o => o.facultyId?.academicYear === year).reduce((sum, o) => sum + o.totalAmount, 0);
+    return { year, total };
+  }).filter(s => s.total > 0);
+
+  // 🚀 NEW COORDINATOR ANALYTICS 2: Activity Insights
+  const topExaminer = faculty.map(f => ({
+    name: f.fullName,
+    count: orders.filter(o => o.facultyId?._id === f._id).length
+  })).sort((a,b) => b.count - a.count)[0];
 
   const handleExportCSV = () => {
     const exportData = faculty.map(f => ({
@@ -414,10 +405,10 @@ const CoordinatorDashboard = () => {
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-2 mt-2">
-          <button onClick={() => setActiveTab('faculty')} className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'faculty' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><Users size={20} /> Faculty Management</button>
-          <button onClick={() => setActiveTab('guests')}className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'guests' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><Ticket size={20} /> Guest Vouchers</button>
+          <button onClick={() => setActiveTab('faculty')} className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'faculty' ? 'bg-blue-600/20 text-blue-400 shadow-inner' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><Users size={20} /> Faculty Management</button>
+          <button onClick={() => setActiveTab('guests')}className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'guests' ? 'bg-blue-600/20 text-blue-400 shadow-inner' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><Ticket size={20} /> Guest Vouchers</button>
           <button className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-gray-500 cursor-not-allowed opacity-50"><Calendar size={20} /> Exam Schedule</button>
-          <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'reports' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><BarChart3 size={20} /> Reports & Logs</button>
+          <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'reports' ? 'bg-blue-600/20 text-blue-400 shadow-inner' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><BarChart3 size={20} /> Reports & Logs</button>
         </nav>
         <button onClick={() => { sessionStorage.clear(); navigate('/'); }} className="p-6 text-gray-400 hover:text-white flex items-center gap-3 border-t border-white/10 transition-colors"><LogOut size={20} /> Logout</button>
       </div>
@@ -452,14 +443,14 @@ const CoordinatorDashboard = () => {
               <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col xl:flex-row gap-4 shrink-0 items-center">
                 <div className="relative w-full xl:w-auto flex-1"><Search className="absolute left-4 top-3.5 text-gray-400" size={18} /><input type="text" placeholder="Search..." className="w-full pl-12 pr-4 py-2.5 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 text-sm" onChange={(e) => setSearchTerm(e.target.value)} /></div>
                 <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-                  <select className="w-full sm:w-auto px-4 py-2.5 border-2 border-gray-100 rounded-xl text-gray-600 text-sm font-bold outline-none bg-white" value={yearScope} onChange={(e) => setYearScope(e.target.value)}>
+                  <select className="w-full sm:w-auto px-4 py-2.5 border-2 border-gray-100 rounded-xl text-gray-600 text-sm font-bold outline-none bg-white shadow-sm" value={yearScope} onChange={(e) => setYearScope(e.target.value)}>
                     <option value="">All Years</option>
                     {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                   <div className="flex gap-2 w-full sm:w-auto">
                     <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
-                    <button onClick={() => fileInputRef.current.click()} className="flex-1 sm:flex-none justify-center px-4 py-2.5 border-2 border-yellow-100 rounded-xl text-sm font-bold flex items-center gap-2 text-yellow-700 bg-yellow-50 hover:bg-yellow-100"><FileSpreadsheet size={16} /> Upload</button>
-                    <button className="flex-1 sm:flex-none justify-center px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg flex items-center gap-2 hover:bg-blue-700" onClick={() => setIsModalOpen(true)}><Plus size={18} /> New</button>
+                    <button onClick={() => fileInputRef.current.click()} className="flex-1 sm:flex-none justify-center px-4 py-2.5 border-2 border-yellow-100 rounded-xl text-sm font-bold flex items-center gap-2 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-all"><FileSpreadsheet size={16} /> Upload</button>
+                    <button className="flex-1 sm:flex-none justify-center px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all" onClick={() => setIsModalOpen(true)}><Plus size={18} /> New</button>
                   </div>
                 </div>
               </div>
@@ -469,9 +460,20 @@ const CoordinatorDashboard = () => {
                     <tr><th className="p-4 pl-6 md:pl-8">Faculty Details</th><th className="p-4">Assigned Subjects</th><th className="p-4 text-center">Year Scope</th><th className="p-4 text-center">Access Code</th><th className="p-4 text-center">Validity Period</th><th className="p-4 text-center pr-6 md:pr-8">Actions</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-sm">
-                    {filteredFaculty.map((f) => (
-                      <tr key={f._id} className="hover:bg-gray-50/50 transition-all group">
-                        <td className="p-4 pl-6 md:pl-8 align-top"><p className="font-bold text-gray-800 text-sm mb-0.5">{f.fullName}</p><p className="text-[11px] text-gray-400 font-medium">{f.email} • {f.mobile}</p></td>
+                    {filteredFaculty.map((f) => {
+                      // 🚀 NEW COORDINATOR FEATURE 1: Expiry Heatmap
+                      const isExpired = new Date() > new Date(f.validTill);
+                      const isExpiringToday = new Date().toDateString() === new Date(f.validTill).toDateString();
+                      
+                      return (
+                      <tr key={f._id} className={`transition-all group ${isExpired ? 'opacity-60 bg-gray-50/30' : isExpiringToday ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-gray-50/50'}`}>
+                        <td className="p-4 pl-6 md:pl-8 align-top">
+                          <div className="flex items-center gap-2">
+                             <p className="font-bold text-gray-800 text-sm">{f.fullName}</p>
+                             {isExpiringToday && <AlertTriangle size={12} className="text-amber-500 animate-pulse" title="Expires Today!" />}
+                          </div>
+                          <p className="text-[11px] text-gray-400 font-medium">{f.email} • {f.mobile}</p>
+                        </td>
                         <td className="p-4 align-top max-w-[200px]">
                           {f.assignedSubjects && f.assignedSubjects.length > 0 ? (
                               <div className="flex flex-col gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
@@ -485,14 +487,16 @@ const CoordinatorDashboard = () => {
                         </td>
                         <td className="p-4 text-center align-top"><span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">{f.academicYear}</span></td>
                         <td className="p-4 text-center align-top"><span className="font-mono font-bold text-blue-600 bg-blue-50/50 px-3 py-1 rounded-md text-[11px]">{f.voucherCode}</span></td>
-                        <td className="p-4 text-center text-[11px] text-gray-500 font-semibold align-top">{new Date(f.validFrom).toLocaleDateString('en-GB')} — {new Date(f.validTill).toLocaleDateString('en-GB')}</td>
+                        <td className={`p-4 text-center text-[11px] font-semibold align-top ${isExpiringToday ? 'text-amber-600' : 'text-gray-500'}`}>
+                          {new Date(f.validFrom).toLocaleDateString('en-GB')} — {new Date(f.validTill).toLocaleDateString('en-GB')}
+                        </td>
                         <td className="p-4 pr-6 md:pr-8 text-center align-top"><div className="flex justify-center gap-2">
                             <button onClick={() => handleWhatsAppShare(f)} className="p-1.5 border border-green-200 rounded text-green-500 hover:bg-green-50"><MessageSquare size={16} /></button>
                             <button onClick={() => handleSendEmail(f)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-blue-600"><Mail size={16} /></button>
                             <button onClick={() => handleDelete(f._id)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                           </div></td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
@@ -501,34 +505,30 @@ const CoordinatorDashboard = () => {
         )}
 
         {activeTab === 'guests' && (
-          <>
-            <header className="bg-white p-4 md:px-8 border-b flex flex-col sm:flex-row justify-between items-center gap-4 shadow-sm z-10 shrink-0">
-              <h1 className="text-xl md:text-2xl font-bold text-gray-800">Guest Vouchers</h1>
-              <button onClick={() => setIsGuestModalOpen(true)} className="px-6 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-purple-700 shadow-lg"><Plus size={18} /> New Guest Pass</button>
-            </header>
-            <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 overflow-hidden">
-              <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-y-auto overflow-x-auto relative">
-                <table className="w-full text-left border-collapse min-w-[700px]">
-                  <thead className="bg-white/95 backdrop-blur-sm border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase sticky top-0 z-10 shadow-sm">
-                    <tr><th className="p-4 pl-6 md:pl-8">Guest Details</th><th className="p-4">Host Faculty</th><th className="p-4 text-center">Access Code</th><th className="p-4 text-center">Validity Period</th><th className="p-4 text-center pr-6 md:pr-8">Status</th></tr>
+          <main className="flex-1 p-8 h-full overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+               <h1 className="text-2xl font-bold text-gray-800">Guest Management</h1>
+               <button onClick={() => setIsGuestModalOpen(true)} className="px-6 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-purple-700 shadow-lg"><Plus size={18} /> New Guest Pass</button>
+            </div>
+            <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    <tr><th className="p-4 pl-8">Guest Name</th><th className="p-4">Host</th><th className="p-4 text-center">Voucher</th><th className="p-4 text-center">Validity</th><th className="p-4 text-center">Status</th></tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50 text-sm">
-                    {guests.length === 0 ? <tr><td colSpan="5" className="text-center p-8 text-gray-400">No guests added.</td></tr> :
-                      guests.map((g) => (
-                        <tr key={g._id} className="hover:bg-gray-50/50 transition-all group">
-                          <td className="p-4 pl-6 md:pl-8"><p className="font-bold text-gray-800 text-sm mb-0.5">{g.guestName}</p><p className="text-[11px] text-gray-400 font-medium">Guest of {deptCode}</p></td>
-                          <td className="p-4"><span className="bg-gray-100 text-gray-600 px-3 py-1.5 rounded-md text-[11px] font-bold">{g.facultyId?.fullName || "Deleted User"}</span></td>
-                          <td className="p-4 text-center"><span className="font-mono font-bold text-purple-600 bg-purple-50/50 px-3 py-1 rounded-md text-[11px] tracking-wider">{g.voucherCode}</span></td>
-                          <td className="p-4 text-center text-[11px] text-gray-500 font-semibold">{new Date(g.validFrom).toLocaleDateString('en-GB')} — {new Date(g.validTill).toLocaleDateString('en-GB')}</td>
-                          <td className="p-4 text-center pr-6 md:pr-8">{new Date() > new Date(g.validTill) || !g.isActive ? <span className="text-red-500 bg-red-50 px-2 py-1 rounded text-[10px] font-bold">Expired</span> : <span className="text-green-500 bg-green-50 px-2 py-1 rounded text-[10px] font-bold">Active</span>}</td>
-                        </tr>
-                      ))
-                    }
+                  <tbody className="divide-y text-sm">
+                    {guests.map(g => (
+                      <tr key={g._id} className="hover:bg-gray-50">
+                        <td className="p-4 pl-8 font-bold">{g.guestName}</td>
+                        <td className="p-4 text-gray-500">{g.facultyId?.fullName}</td>
+                        <td className="p-4 text-center font-mono font-bold text-purple-600">{g.voucherCode}</td>
+                        <td className="p-4 text-center">{new Date(g.validTill).toLocaleDateString('en-GB')}</td>
+                        <td className="p-4 text-center">{new Date() > new Date(g.validTill) ? <span className="text-red-500 font-bold">Expired</span> : <span className="text-green-500 font-bold">Active</span>}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
-              </div>
-            </main>
-          </>
+            </div>
+          </main>
         )}
 
         {activeTab === 'reports' && (
@@ -552,30 +552,47 @@ const CoordinatorDashboard = () => {
                  </div>
               </div>
             </header>
-            <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 overflow-hidden">
-              <div className="grid grid-cols-2 gap-4 md:gap-6 shrink-0">
-                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-blue-500"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Total Orders</p><h3 className="text-2xl md:text-3xl font-black text-gray-800">{totalOrders}</h3></div>
-                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-green-500"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Total Billed</p><h3 className="text-2xl md:text-3xl font-black text-green-600">₹{totalSpent}</h3></div>
+            <main className="flex-1 flex flex-col p-4 md:p-8 gap-6 overflow-y-auto">
+              {/* 🚀 NEW COORDINATOR FEATURE 2: Year-wise spending stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
+                <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-blue-500">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Total Orders</p>
+                  <h3 className="text-2xl font-black text-gray-800">{totalOrders}</h3>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-green-500">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Total Billed</p>
+                  <h3 className="text-2xl font-black text-green-600">₹{totalSpent}</h3>
+                </div>
+                {/* 🚀 NEW Stats Card: Most Active */}
+                <div className="bg-white p-5 rounded-2xl border shadow-sm">
+                  <div className="flex items-center gap-2 text-blue-600 mb-1"><UserCheck size={14} /><p className="text-[10px] font-bold uppercase">Top User</p></div>
+                  <h3 className="text-sm font-black text-slate-700 truncate">{topExaminer?.name || 'N/A'}</h3>
+                  <p className="text-[10px] text-slate-400 font-bold">{topExaminer?.count || 0} Orders total</p>
+                </div>
+                {/* 🚀 NEW Stats Card: Highest Year Expense */}
+                <div className="bg-white p-5 rounded-2xl border shadow-sm overflow-hidden relative">
+                   <div className="flex items-center gap-2 text-emerald-600 mb-1"><TrendingUp size={14} /><p className="text-[10px] font-bold uppercase">Budget Peak</p></div>
+                   <h3 className="text-sm font-black text-slate-700 truncate">{yearWiseStats[0]?.year || 'N/A'}</h3>
+                   <p className="text-[10px] text-slate-400 font-bold">Spent: ₹{yearWiseStats[0]?.total || 0}</p>
+                </div>
               </div>
-              <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-y-auto overflow-x-auto relative">
+
+              <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-x-auto relative">
                 <table className="w-full text-left border-collapse min-w-[700px]">
-                  <thead className="bg-gray-50/95 backdrop-blur-sm border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase sticky top-0 z-10 shadow-sm">
-                    <tr><th className="p-4 pl-6 md:pl-8">Date & Time</th><th className="p-4">Billed To</th><th className="p-4">Year Scope</th><th className="p-4">Voucher Used</th><th className="p-4">Items Consumed</th><th className="p-4 text-right pr-6 md:pr-8">Order Total</th></tr>
+                  <thead className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase sticky top-0 z-10 border-b">
+                    <tr><th className="p-4 pl-8">Date & Time</th><th className="p-4">Billed To</th><th className="p-4 text-center">Year</th><th className="p-4 text-center">Voucher</th><th className="p-4 text-right pr-8">Total</th></tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50 text-sm">
-                    {filteredOrders.length === 0 ? <tr><td colSpan="6" className="text-center p-8 text-gray-400">No orders found.</td></tr> :
+                  <tbody className="divide-y text-sm">
+                    {filteredOrders.length === 0 ? <tr><td colSpan="5" className="text-center p-12 text-gray-400">No logs found.</td></tr> :
                       filteredOrders.map((order) => {
                         const isGuest = order.voucherCode?.startsWith('G-');
-                        const actualGuestName = order.guestName || guests.find(g => g.voucherCode === order.voucherCode)?.guestName || 'Guest';
-                        const hostName = order.facultyId?.fullName || "Deleted User";
                         return (
-                          <tr key={order._id} className="hover:bg-gray-50/50 transition-all">
-                            <td className="p-4 pl-6 md:pl-8"><p className="font-bold text-gray-800 text-sm">{new Date(order.orderDate || order.createdAt).toLocaleDateString('en-GB')}</p><p className="text-[11px] text-gray-400 font-medium">{new Date(order.orderDate || order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p></td>
-                            <td className="p-4">{isGuest ? <div><p className="font-bold text-gray-800 text-sm">{actualGuestName}</p><p className="text-[11px] text-gray-500 font-medium mt-0.5">Host: {hostName}</p></div> : <p className="font-bold text-gray-800 text-sm">{hostName}</p>}</td>
-                            <td className="p-4"><span className="text-xs text-gray-500 font-semibold">{order.facultyId?.academicYear || 'N/A'}</span></td>
-                            <td className="p-4"><span className="font-mono font-bold text-blue-600 bg-blue-50/50 px-2 py-1 rounded text-[11px]">{order.voucherCode || order.facultyId?.voucherCode || "N/A"}</span></td>
-                            <td className="p-4 text-xs text-gray-500">{order.items.map(item => `${item.itemName} (x${item.quantity})`).join(', ')}</td>
-                            <td className="p-4 pr-6 md:pr-8 text-right font-black text-green-600">₹{order.totalAmount}</td>
+                          <tr key={order._id} className="hover:bg-gray-50/50">
+                            <td className="p-4 pl-8"><p className="font-bold">{new Date(order.orderDate || order.createdAt).toLocaleDateString('en-GB')}</p><p className="text-[10px] text-gray-400">{new Date(order.orderDate || order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p></td>
+                            <td className="p-4">{isGuest ? <div><p className="font-bold">{order.guestName}</p><p className="text-[10px] text-gray-500 italic">Host: {order.facultyId?.fullName}</p></div> : <p className="font-bold">{order.facultyId?.fullName}</p>}</td>
+                            <td className="p-4 text-center text-xs font-semibold text-gray-400">{order.facultyId?.academicYear || 'N/A'}</td>
+                            <td className="p-4 text-center"><span className="font-mono text-[11px] bg-gray-100 px-2 py-1 rounded">{order.voucherCode}</span></td>
+                            <td className="p-4 text-right pr-8 font-black text-emerald-600">₹{order.totalAmount}</td>
                           </tr>
                         );
                       })
@@ -588,6 +605,7 @@ const CoordinatorDashboard = () => {
         )}
       </div>
 
+      {/* MODALS RENDERED BELOW */}
       {isModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in duration-200">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
-import { Download, Printer, Plus, Edit, Trash2, LogOut, Utensils, CheckCircle2, XCircle, Power, PowerOff, Star, MessageSquare } from 'lucide-react'; 
+import { Download, Printer, Plus, Edit, Trash2, LogOut, Utensils, CheckCircle2, XCircle, Power, PowerOff, Star, MessageSquare, PieChart, ChefHat } from 'lucide-react'; 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import toast from 'react-hot-toast'; 
@@ -27,9 +27,7 @@ const CanteenManagerDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
-  
   const [allFaculty, setAllFaculty] = useState([]);
-  
   const [filterDept, setFilterDept] = useState('All Departments');
   
   const todayStr = getLocalYYYYMMDD();
@@ -93,6 +91,23 @@ const CanteenManagerDashboard = () => {
           if (deptName !== filterDept) return false;
       }
       return true;
+  });
+
+  // 🚀 NEW ANALYTICS: Popular Dishes Logic
+  const itemCounts = {};
+  filteredOrders.forEach(o => {
+    o.items.forEach(i => {
+        itemCounts[i.itemName] = (itemCounts[i.itemName] || 0) + i.quantity;
+    });
+  });
+  const popularItems = Object.entries(itemCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
+
+  // 🚀 NEW ANALYTICS: Category Revenue Logic
+  const categoryRevenue = {};
+  filteredOrders.forEach(o => {
+    o.items.forEach(i => {
+        categoryRevenue[i.category] = (categoryRevenue[i.category] || 0) + (i.price * i.quantity);
+    });
   });
 
   const feedbackOrders = orders.filter(o => o.rating);
@@ -176,7 +191,6 @@ const downloadReport = () => {
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         
-        // 🚀 UPDATED: Better Reference No logic for M.Tech
         const deptCodeName = filterDept !== 'All Departments' 
             ? filterDept.replace("M.Tech ", "M").substring(0, 5).toUpperCase() 
             : 'ALL';
@@ -194,7 +208,6 @@ const downloadReport = () => {
             : `${filterDept.toUpperCase()}`;
         doc.text(`Department: ${deptTitle}`, 14, 58);
 
-        // Filter orders based on voucher codes
         const facultyOrders = filteredOrders.filter(o => !o.voucherCode?.startsWith('G-'));
         const guestOrders = filteredOrders.filter(o => o.voucherCode?.startsWith('G-'));
 
@@ -204,8 +217,6 @@ const downloadReport = () => {
             const rawDate = rawDateObj.toLocaleDateString('en-GB');
             const orderDateIso = rawDateObj.toISOString().split('T')[0];
             const baseName = order.facultyId?.fullName || 'Unknown Faculty';
-            
-            // 🚀 Ensure we find faculty across both UG and PG
             const matchedFaculty = allFaculty.find(f => f.voucherCode === order.voucherCode || (order.facultyId && f._id === (order.facultyId._id || order.facultyId)));
             const yearScope = matchedFaculty?.academicYear || 'N/A';
             
@@ -213,31 +224,18 @@ const downloadReport = () => {
             if (matchedFaculty?.assignedSubjects && matchedFaculty.assignedSubjects.length > 0) {
                 const relevantSubs = matchedFaculty.assignedSubjects.filter(sub => {
                     const parts = sub.split('|');
-                    if (parts.length === 3) {
-                        return orderDateIso >= parts[0] && orderDateIso <= parts[1];
-                    }
+                    if (parts.length === 3) return orderDateIso >= parts[0] && orderDateIso <= parts[1];
                     return true;
                 }).map(sub => {
                     const parts = sub.split('|');
                     return parts.length === 3 ? parts[2] : sub;
                 });
-
-                if (relevantSubs.length > 0) {
-                    activeSubjects = relevantSubs.join(', ');
-                } else {
-                    activeSubjects = "Exams / Duties";
-                }
+                activeSubjects = relevantSubs.length > 0 ? relevantSubs.join(', ') : "Exams / Duties";
             }
 
             const groupingKey = `${baseName}_${rawDate}`; 
             if (!facultyTotals[groupingKey]) {
-                facultyTotals[groupingKey] = { 
-                    displayName: baseName, 
-                    date: rawDate, 
-                    yearAndSubs: `${yearScope}\n${activeSubjects}`,
-                    items: [], 
-                    total: 0 
-                };
+                facultyTotals[groupingKey] = { displayName: baseName, date: rawDate, yearAndSubs: `${yearScope}\n${activeSubjects}`, items: [], total: 0 };
             }
             facultyTotals[groupingKey].total += order.totalAmount;
             facultyTotals[groupingKey].items.push(order.items.map(i => `${i.itemName}(x${i.quantity})`).join(', '));
@@ -248,10 +246,8 @@ const downloadReport = () => {
             const rawDateObj = new Date(order.createdAt || order.orderDate);
             const rawDate = rawDateObj.toLocaleDateString('en-GB');
             const orderDateIso = rawDateObj.toISOString().split('T')[0];
-            
             const actualGuestName = order.guestName || 'Guest';
             const baseName = `${actualGuestName} \n(Host: ${order.facultyId?.fullName || 'Unknown'})`;
-            
             const hostFaculty = allFaculty.find(f => (order.facultyId && f._id === (order.facultyId._id || order.facultyId)));
             const yearScope = hostFaculty?.academicYear || 'N/A';
             
@@ -259,135 +255,71 @@ const downloadReport = () => {
             if (hostFaculty?.assignedSubjects && hostFaculty.assignedSubjects.length > 0) {
                 const relevantSubs = hostFaculty.assignedSubjects.filter(sub => {
                     const parts = sub.split('|');
-                    if (parts.length === 3) {
-                        return orderDateIso >= parts[0] && orderDateIso <= parts[1];
-                    }
+                    if (parts.length === 3) return orderDateIso >= parts[0] && orderDateIso <= parts[1];
                     return true;
                 }).map(sub => {
                     const parts = sub.split('|');
                     return parts.length === 3 ? parts[2] : sub;
                 });
-
-                if (relevantSubs.length > 0) {
-                    activeSubjects = relevantSubs.join(', ');
-                } else {
-                    activeSubjects = "Exams / Duties";
-                }
+                activeSubjects = relevantSubs.length > 0 ? relevantSubs.join(', ') : "Exams / Duties";
             }
 
             const groupingKey = `${baseName}_${rawDate}`;
             if (!guestTotals[groupingKey]) {
-                guestTotals[groupingKey] = { 
-                    displayName: baseName, 
-                    date: rawDate, 
-                    yearAndSubs: `${yearScope}\n${activeSubjects}`,
-                    items: [], 
-                    total: 0 
-                };
+                guestTotals[groupingKey] = { displayName: baseName, date: rawDate, yearAndSubs: `${yearScope}\n${activeSubjects}`, items: [], total: 0 };
             }
             guestTotals[groupingKey].total += order.totalAmount;
             guestTotals[groupingKey].items.push(order.items.map(i => `${i.itemName}(x${i.quantity})`).join(', '));
         });
 
-        // --- TABLE RENDERING ---
         let currentY = 70;
-        
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
         doc.text("SECTION A: FACULTY CONSUMPTION", 14, currentY);
         
-        const facultyTableData = Object.values(facultyTotals).map((data, index) => [ 
-            index + 1, 
-            data.date, 
-            data.displayName, 
-            data.yearAndSubs,
-            data.items.join(' | '), 
-            `Rs. ${data.total}` 
-        ]);
+        const facultyTableData = Object.values(facultyTotals).map((data, index) => [ index + 1, data.date, data.displayName, data.yearAndSubs, data.items.join(' | '), `Rs. ${data.total}` ]);
         const facultySum = Object.values(facultyTotals).reduce((sum, val) => sum + val.total, 0);
 
         autoTable(doc, {
           startY: currentY + 3,
           head: [['Sr', 'Date', 'Faculty Name', 'Year & Specific Subject', 'Items Consumed', 'Total (Rs)']],
           body: facultyTableData.length ? facultyTableData : [['-', '-', 'No Faculty Orders', '-', '-', '-']],
-          theme: 'grid',
-          headStyles: { fillColor: [50, 50, 50] },
-          bodyStyles: { fillColor: false }, 
-          alternateRowStyles: { fillColor: false },
-          styles: { fontSize: 8, cellPadding: 3 }, 
-          columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
+          theme: 'grid', headStyles: { fillColor: [50, 50, 50] }, bodyStyles: { fillColor: false }, alternateRowStyles: { fillColor: false },
+          styles: { fontSize: 8, cellPadding: 3 }, columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
         });
 
         currentY = doc.lastAutoTable.finalY;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
         doc.text(`Sub-Total (Faculty): Rs. ${facultySum}/-`, 140, currentY + 8);
 
         currentY += 18;
         doc.text("SECTION B: GUEST/EXTERNAL CONSUMPTION", 14, currentY);
-        
-        const guestTableData = Object.values(guestTotals).map((data, index) => [ 
-            index + 1, 
-            data.date, 
-            data.displayName, 
-            data.yearAndSubs,
-            data.items.join(' | '), 
-            `Rs. ${data.total}` 
-        ]);
+        const guestTableData = Object.values(guestTotals).map((data, index) => [ index + 1, data.date, data.displayName, data.yearAndSubs, data.items.join(' | '), `Rs. ${data.total}` ]);
         const guestSum = Object.values(guestTotals).reduce((sum, val) => sum + val.total, 0);
 
         autoTable(doc, {
           startY: currentY + 3,
           head: [['Sr', 'Date', 'Guest Details', 'Year & Specific Subject', 'Items Consumed', 'Total (Rs)']],
           body: guestTableData.length ? guestTableData : [['-', '-', 'No Guest Orders', '-', '-', '-']],
-          theme: 'grid',
-          headStyles: { fillColor: [50, 50, 50] },
-          bodyStyles: { fillColor: false },
-          alternateRowStyles: { fillColor: false },
-          styles: { fontSize: 8, cellPadding: 3 },
-          columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
+          theme: 'grid', headStyles: { fillColor: [50, 50, 50] }, bodyStyles: { fillColor: false }, alternateRowStyles: { fillColor: false },
+          styles: { fontSize: 8, cellPadding: 3 }, columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
         });
 
         currentY = doc.lastAutoTable.finalY;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
         doc.text(`Sub-Total (Guest): Rs. ${guestSum}/-`, 140, currentY + 8);
-
         const grandTotal = facultySum + guestSum;
-        doc.rect(130, currentY + 15, 66, 10);
-        doc.setFontSize(12);
-        doc.text(`GRAND TOTAL`, 135, currentY + 22);
-        doc.text(`Rs. ${grandTotal}`, 175, currentY + 22);
+        doc.rect(130, currentY + 15, 66, 10); doc.setFontSize(12); doc.text(`GRAND TOTAL`, 135, currentY + 22); doc.text(`Rs. ${grandTotal}`, 175, currentY + 22);
 
-        // Footer and Signatures
         const pageHeight = doc.internal.pageSize.getHeight();
         let signatureY = currentY + 50; 
-        if (signatureY + 30 > pageHeight - 20) {
-            doc.addPage();
-            signatureY = 40; 
-        }
-
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "bold");
-        doc.line(20, signatureY, 60, signatureY);
-        doc.text("MESS MANAGER", 25, signatureY + 6);
-        doc.line(85, signatureY, 135, signatureY);
-        doc.text("PRACTICAL COORDINATOR", 87, signatureY + 6);
-        doc.line(160, signatureY, 200, signatureY);
-        doc.text("HEAD OF DEPARTMENT", 162, signatureY + 6);
-        doc.line(45, signatureY + 25, 85, signatureY + 25);
-        doc.text("CEO", 60, signatureY + 31);
-        doc.line(135, signatureY + 25, 175, signatureY + 25);
-        doc.text("PRINCIPAL", 148, signatureY + 31);
+        if (signatureY + 30 > pageHeight - 20) { doc.addPage(); signatureY = 40; }
+        doc.setFontSize(9); doc.line(20, signatureY, 60, signatureY); doc.text("MESS MANAGER", 25, signatureY + 6);
+        doc.line(85, signatureY, 135, signatureY); doc.text("PRACTICAL COORDINATOR", 87, signatureY + 6);
+        doc.line(160, signatureY, 200, signatureY); doc.text("HEAD OF DEPARTMENT", 162, signatureY + 6);
+        doc.line(45, signatureY + 25, 85, signatureY + 25); doc.text("CEO", 60, signatureY + 31);
+        doc.line(135, signatureY + 25, 175, signatureY + 25); doc.text("PRINCIPAL", 148, signatureY + 31);
         
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7);
-        const downloadTime = new Date().toLocaleString('en-GB', {
-            day: '2-digit', month: 'short', year: 'numeric', 
-            hour: '2-digit', minute: '2-digit', hour12: true
-        });
-        doc.text(`SYSTEM GENERATED REPORT | PICT CANTEEN & MESS SECTION | DOWNLOADED: ${downloadTime.toUpperCase()}`, 48, pageHeight - 5);
-
+        doc.setFontSize(7); const downloadTime = new Date().toLocaleString('en-GB');
+        doc.text(`SYSTEM GENERATED REPORT | PICT CANTEEN | DOWNLOADED: ${downloadTime}`, 48, pageHeight - 5);
         doc.save(`Canteen_Report_${filterDept.replace(/\s+/g, '_')}_${startDate}.pdf`);
         toast.success("PDF Report Downloaded!"); 
       };
@@ -396,27 +328,19 @@ const downloadReport = () => {
 
   const printReceipt = (order) => {
       const doc = new jsPDF({ format: [80, 150] }); 
-      doc.setFontSize(12);
-      doc.text("PICT CANTEEN", 25, 10);
-      doc.setFontSize(8);
+      doc.setFontSize(12); doc.text("PICT CANTEEN", 25, 10); doc.setFontSize(8);
       doc.text("--------------------------------", 10, 15);
       doc.text(`Date: ${new Date(order.createdAt || order.orderDate || Date.now()).toLocaleString()}`, 10, 20);
-      doc.text(`Billed To: ${order.facultyId?.fullName || 'Walk-in'}`, 10, 25);
+      doc.text(`Billed To: ${order.facultyId?.fullName || order.guestName || 'Walk-in'}`, 10, 25);
       doc.text(`Dept: ${order.departmentId?.name || 'N/A'}`, 10, 30); 
       doc.text("--------------------------------", 10, 35);
-      
       let y = 40;
       if(order.items) {
           order.items.forEach(item => {
-              doc.text(`${item.itemName} x${item.quantity}`, 10, y);
-              doc.text(`Rs.${item.price}`, 60, y);
-              y += 5;
+              doc.text(`${item.itemName} x${item.quantity}`, 10, y); doc.text(`Rs.${item.price * item.quantity}`, 60, y); y += 5;
           });
       }
-      
-      doc.text("--------------------------------", 10, y);
-      doc.setFontSize(10);
-      doc.text(`TOTAL: Rs. ${order.totalAmount || 0}`, 10, y + 6);
+      doc.text("--------------------------------", 10, y); doc.setFontSize(10); doc.text(`TOTAL: Rs. ${order.totalAmount || 0}`, 10, y + 6);
       doc.save(`Receipt_${order._id.substring(0,6)}.pdf`);
   };
 
@@ -437,20 +361,47 @@ const downloadReport = () => {
 
       <div className="max-w-7xl mx-auto p-4 md:p-8">
           
-          {/* TABS */}
           <div className="flex gap-2 border-b border-slate-200 mb-6 bg-white p-1.5 rounded-xl shadow-sm border inline-flex overflow-x-auto max-w-full">
               <button onClick={() => setActiveTab('orders')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Live Orders</button>
               <button onClick={() => setActiveTab('menu')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'menu' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Menu Management</button>
-              <button onClick={() => setActiveTab('feedback')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'feedback' ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>
-                  Customer Feedback
-              </button>
+              <button onClick={() => setActiveTab('feedback')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'feedback' ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Customer Feedback</button>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 min-h-[600px]">
               
-              {/* ================= TAB 1: ORDERS ================= */}
               {activeTab === 'orders' && (
                   <div className="animate-in fade-in duration-300">
+                      
+                      {/* 🚀 NEW ANALYTICS SECTION */}
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                         {/* Category Sales Card */}
+                         <div className="bg-slate-50 p-5 rounded-2xl border flex flex-col gap-3 shadow-inner">
+                            <div className="flex items-center gap-2 text-blue-600 mb-1"><PieChart size={18} /><h3 className="text-xs font-black uppercase tracking-widest">Category Sales</h3></div>
+                            <div className="grid grid-cols-2 gap-2">
+                               {Object.entries(categoryRevenue).map(([cat, rev]) => (
+                                 <div key={cat} className="bg-white p-2 rounded-lg border text-center shadow-sm"><p className="text-[9px] font-bold text-slate-400 uppercase">{cat}</p><p className="text-sm font-black text-slate-700">₹{rev}</p></div>
+                               ))}
+                               {Object.keys(categoryRevenue).length === 0 && <div className="col-span-2 py-4 text-center text-xs text-slate-400 italic">No sales data yet</div>}
+                            </div>
+                         </div>
+                         {/* Popular Items Card */}
+                         <div className="bg-slate-50 p-5 rounded-2xl border flex flex-col gap-3 shadow-inner col-span-1 lg:col-span-2">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-emerald-600"><ChefHat size={18} /><h3 className="text-xs font-black uppercase tracking-widest">Top 5 Popular Dishes</h3></div>
+                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black">Live Performance</span>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                {popularItems.map(([name, qty]) => (
+                                  <div key={name} className="bg-white px-4 py-2 rounded-xl border border-slate-200 flex items-center gap-3 shadow-sm hover:border-emerald-300 transition-all">
+                                     <span className="w-6 h-6 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-[10px] font-black">{qty}</span>
+                                     <span className="text-xs font-bold text-slate-700">{name}</span>
+                                  </div>
+                                ))}
+                                {popularItems.length === 0 && <p className="text-slate-400 text-xs italic">No orders in current date range.</p>}
+                            </div>
+                         </div>
+                      </div>
+
                       <div className="flex flex-wrap items-end gap-5 mb-8 bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-inner">
                           <div>
                               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Department</label>
@@ -517,7 +468,6 @@ const downloadReport = () => {
                   </div>
               )}
 
-              {/* ================= TAB 2: MENU MANAGEMENT ================= */}
               {activeTab === 'menu' && (
                   <div className="animate-in fade-in duration-300">
                       <div className="flex justify-between items-center mb-8 px-2">
@@ -557,7 +507,6 @@ const downloadReport = () => {
                   </div>
               )}
 
-              {/* 🚀 TAB 3: FEEDBACK LOGS */}
               {activeTab === 'feedback' && (
                   <div className="animate-in fade-in duration-300">
                       <div className="flex items-center gap-6 mb-8 px-2 border-b border-slate-100 pb-6">
@@ -579,9 +528,7 @@ const downloadReport = () => {
                               <div className="col-span-full py-16 text-center text-slate-400 font-medium border-2 border-dashed border-slate-200 rounded-2xl">No feedback has been submitted yet.</div>
                           ) : (
                               feedbackOrders.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).map(order => {
-                                  // 🚀 Determine if this feedback came from a Guest Order
                                   const isGuest = order.voucherCode?.startsWith('G-');
-                                  
                                   return (
                                   <div key={order._id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3">
                                       <div className="flex justify-between items-start">
@@ -590,22 +537,17 @@ const downloadReport = () => {
                                           </div>
                                           <span className="text-[10px] font-bold text-slate-400">{new Date(order.createdAt).toLocaleDateString('en-GB')}</span>
                                       </div>
-                                      
                                       {order.feedbackText && (
                                           <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                                               <p className="text-sm font-medium text-slate-700 italic">"{order.feedbackText}"</p>
                                           </div>
                                       )}
-                                      
                                       <div className="mt-auto pt-3 border-t border-slate-100">
                                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ordered By</p>
-                                          
-                                          {/* 🚀 THE FIX: Display Guest Name if Guest, Host Name if Walk-in */}
                                           <p className="text-sm font-bold text-slate-800">
                                               {isGuest ? `${order.guestName || 'Guest'} ` : (order.facultyId?.fullName || 'Walk-In')}
                                           </p>
                                           {isGuest && <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Host: {order.facultyId?.fullName}</p>}
-                                          
                                           <p className="text-xs text-slate-500 mt-2 line-clamp-1 border-t border-slate-50 pt-1">{order.items.map(i => i.itemName).join(', ')}</p>
                                       </div>
                                   </div>
@@ -614,11 +556,9 @@ const downloadReport = () => {
                       </div>
                   </div>
               )}
-
           </div>
       </div>
 
-       {/* MENU MODAL */}
        {isMenuModalOpen && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
               <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in duration-200 border border-slate-100">

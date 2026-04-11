@@ -153,7 +153,7 @@ const CanteenManagerDashboard = () => {
       }
   };
 
-  const downloadReport = () => {
+const downloadReport = () => {
       const doc = new jsPDF();
       const img = new Image();
       img.src = '/image1.jpeg'; 
@@ -176,7 +176,11 @@ const CanteenManagerDashboard = () => {
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         
-        const deptCodeName = filterDept !== 'All Departments' ? filterDept.substring(0, 4).toUpperCase() : 'ALL';
+        // 🚀 UPDATED: Better Reference No logic for M.Tech
+        const deptCodeName = filterDept !== 'All Departments' 
+            ? filterDept.replace("M.Tech ", "M").substring(0, 5).toUpperCase() 
+            : 'ALL';
+            
         const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
         const refNo = `Ref No: PICT/CNTN/${dateStr}/${deptCodeName}-01`;
         const dateRangeText = `Date: ${startDate ? new Date(startDate).toLocaleDateString('en-GB') : 'All'} to ${endDate ? new Date(endDate).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}`;
@@ -184,11 +188,13 @@ const CanteenManagerDashboard = () => {
         doc.text(refNo, 14, 50);
         doc.text(dateRangeText, 140, 50);
         doc.setFont("helvetica", "bold");
+        
         const deptTitle = filterDept === 'All Departments' 
             ? "ALL DEPARTMENTS" 
-            : `${filterDept.toUpperCase()} DEPARTMENT`;
+            : `${filterDept.toUpperCase()}`;
         doc.text(`Department: ${deptTitle}`, 14, 58);
 
+        // Filter orders based on voucher codes
         const facultyOrders = filteredOrders.filter(o => !o.voucherCode?.startsWith('G-'));
         const guestOrders = filteredOrders.filter(o => o.voucherCode?.startsWith('G-'));
 
@@ -199,6 +205,7 @@ const CanteenManagerDashboard = () => {
             const orderDateIso = rawDateObj.toISOString().split('T')[0];
             const baseName = order.facultyId?.fullName || 'Unknown Faculty';
             
+            // 🚀 Ensure we find faculty across both UG and PG
             const matchedFaculty = allFaculty.find(f => f.voucherCode === order.voucherCode || (order.facultyId && f._id === (order.facultyId._id || order.facultyId)));
             const yearScope = matchedFaculty?.academicYear || 'N/A';
             
@@ -218,7 +225,7 @@ const CanteenManagerDashboard = () => {
                 if (relevantSubs.length > 0) {
                     activeSubjects = relevantSubs.join(', ');
                 } else {
-                    activeSubjects = "Off-Duty / No Exam";
+                    activeSubjects = "Exams / Duties";
                 }
             }
 
@@ -264,7 +271,7 @@ const CanteenManagerDashboard = () => {
                 if (relevantSubs.length > 0) {
                     activeSubjects = relevantSubs.join(', ');
                 } else {
-                    activeSubjects = "Off-Duty / No Exam";
+                    activeSubjects = "Exams / Duties";
                 }
             }
 
@@ -282,6 +289,7 @@ const CanteenManagerDashboard = () => {
             guestTotals[groupingKey].items.push(order.items.map(i => `${i.itemName}(x${i.quantity})`).join(', '));
         });
 
+        // --- TABLE RENDERING ---
         let currentY = 70;
         
         doc.setFontSize(11);
@@ -351,6 +359,7 @@ const CanteenManagerDashboard = () => {
         doc.text(`GRAND TOTAL`, 135, currentY + 22);
         doc.text(`Rs. ${grandTotal}`, 175, currentY + 22);
 
+        // Footer and Signatures
         const pageHeight = doc.internal.pageSize.getHeight();
         let signatureY = currentY + 50; 
         if (signatureY + 30 > pageHeight - 20) {
@@ -392,7 +401,7 @@ const CanteenManagerDashboard = () => {
       doc.setFontSize(8);
       doc.text("--------------------------------", 10, 15);
       doc.text(`Date: ${new Date(order.createdAt || order.orderDate || Date.now()).toLocaleString()}`, 10, 20);
-      doc.text(`Billed To: ${order.facultyId?.fullName || 'Walk-in'}`, 10, 25);
+      doc.text(`Billed To: ${order.facultyId?.fullName || actualGuestName}`, 10, 25);
       doc.text(`Dept: ${order.departmentId?.name || 'N/A'}`, 10, 30); 
       doc.text("--------------------------------", 10, 35);
       

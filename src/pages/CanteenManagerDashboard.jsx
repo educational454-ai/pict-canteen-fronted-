@@ -394,29 +394,56 @@ const downloadReport = () => {
       img.onerror = () => { toast.error("Failed to load watermark image."); };
   };
 
-  const printReceipt = (order) => {
+const printReceipt = (order) => {
       const doc = new jsPDF({ format: [80, 150] }); 
+      
+      // 🚀 THE FIX: Identify if it's a guest or faculty
+      const isGuest = order.voucherCode?.startsWith('G-');
+      const displayName = isGuest 
+        ? `${order.guestName || 'Guest'}` 
+        : (order.facultyId?.fullName || 'Walk-in');
+
       doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
       doc.text("PICT CANTEEN", 25, 10);
+      
       doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
       doc.text("--------------------------------", 10, 15);
       doc.text(`Date: ${new Date(order.createdAt || order.orderDate || Date.now()).toLocaleString()}`, 10, 20);
-      doc.text(`Billed To: ${order.facultyId?.fullName || actualGuestName}`, 10, 25);
-      doc.text(`Dept: ${order.departmentId?.name || 'N/A'}`, 10, 30); 
-      doc.text("--------------------------------", 10, 35);
       
-      let y = 40;
+      // Show Guest Name or Faculty Name
+      doc.text(`Billed To: ${displayName}`, 10, 25);
+      
+      // If it's a guest, optionally show the Host below it in small text
+      if (isGuest) {
+        doc.setFontSize(7);
+        doc.text(`Host: ${order.facultyId?.fullName || 'N/A'}`, 10, 29);
+        doc.setFontSize(8);
+      }
+
+      doc.text(`Dept: ${order.departmentId?.name || 'N/A'}`, 10, 33); 
+      doc.text("--------------------------------", 10, 38);
+      
+      let y = 43;
       if(order.items) {
           order.items.forEach(item => {
               doc.text(`${item.itemName} x${item.quantity}`, 10, y);
-              doc.text(`Rs.${item.price}`, 60, y);
+              doc.text(`Rs.${item.price * item.quantity}`, 60, y); // Fixed to show line total
               y += 5;
           });
       }
       
       doc.text("--------------------------------", 10, y);
       doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
       doc.text(`TOTAL: Rs. ${order.totalAmount || 0}`, 10, y + 6);
+      
+      // Footer
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "italic");
+      doc.text("Thank you! Visit again.", 25, y + 15);
+      
       doc.save(`Receipt_${order._id.substring(0,6)}.pdf`);
   };
 

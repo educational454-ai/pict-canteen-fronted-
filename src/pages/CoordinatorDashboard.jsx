@@ -24,9 +24,8 @@ const CoordinatorDashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
   
-  // States for Filtering
-  const [yearScope, setYearScope] = useState(''); // Used in Faculty Tab
-  const [reportYearFilter, setReportYearFilter] = useState(''); // NEW: Used in Reports Tab
+  const [yearScope, setYearScope] = useState(''); 
+  const [reportYearFilter, setReportYearFilter] = useState(''); 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
@@ -37,8 +36,16 @@ const CoordinatorDashboard = () => {
   const userName = sessionStorage.getItem('userName') || 'Coordinator'; 
   const deptName = sessionStorage.getItem('deptName') || 'Department';
 
+  // 🚀 LOGIC: Determine available years based on B.Tech vs M.Tech
+  const isMTech = deptName.includes('M.Tech');
+  const availableYears = isMTech 
+    ? ["1st Yr (Regular)", "1st Yr (Backlog)", "2nd Yr (Regular)", "2nd Yr (Backlog)"]
+    : ["2nd Yr (Regular)", "2nd Yr (Backlog)", "3rd Yr (Regular)", "3rd Yr (Backlog)", "4th Yr (Regular)"];
+
   const [formData, setFormData] = useState({ 
-      fullName: '', email: '', mobile: '', academicYear: '2025-26', assignedSubject: '',
+      fullName: '', email: '', mobile: '', 
+      academicYear: isMTech ? '1st Yr (Regular)' : '2nd Yr (Regular)', 
+      assignedSubject: '',
       validFrom: new Date().toISOString().split('T')[0], 
       validTill: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0] 
   });
@@ -85,9 +92,7 @@ const CoordinatorDashboard = () => {
   }).length;
   const pendingExpired = totalExaminers - activeVouchers;
 
-  // 🚀 UPDATED: Filter logic to include reportYearFilter
   const filteredOrders = orders.filter(order => {
-    // 1. Date Filter
     if (startDate || endDate) {
         const orderDate = new Date(order.orderDate || order.createdAt);
         orderDate.setHours(0, 0, 0, 0);
@@ -97,13 +102,10 @@ const CoordinatorDashboard = () => {
         end.setHours(23, 59, 59, 999);
         if (orderDate < start || orderDate > end) return false;
     }
-
-    // 2. Year Filter (Check faculty year for both faculty and guest orders)
     if (reportYearFilter !== '') {
         const facultyYear = order.facultyId?.academicYear;
         if (facultyYear !== reportYearFilter) return false;
     }
-
     return true;
   });
 
@@ -128,7 +130,6 @@ const CoordinatorDashboard = () => {
       const isGuest = o.voucherCode?.startsWith('G-');
       const actualGuestName = o.guestName || guests.find(g => g.voucherCode === o.voucherCode)?.guestName || 'Guest';
       const hostName = o.facultyId?.fullName || "Deleted User";
-
       return {
         "Date": new Date(o.orderDate || o.createdAt).toLocaleDateString(),
         "Time": new Date(o.orderDate || o.createdAt).toLocaleTimeString(),
@@ -140,7 +141,6 @@ const CoordinatorDashboard = () => {
         "Amount (₹)": o.totalAmount
       };
     });
-    
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
@@ -152,12 +152,10 @@ const CoordinatorDashboard = () => {
     const doc = new jsPDF();
     const img = new Image();
     img.src = '/image1.jpeg'; 
-    
     img.onload = () => {
       doc.setGState(new doc.GState({ opacity: 0.15 }));
       doc.addImage(img, 'JPEG', 35, 70, 140, 140);
       doc.setGState(new doc.GState({ opacity: 1.0 })); 
-
       doc.addImage(img, 'JPEG', 14, 10, 22, 22);
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
@@ -165,23 +163,18 @@ const CoordinatorDashboard = () => {
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       doc.text("Office of the Mess & Canteen Section", 42, 24);
-
       doc.rect(55, 30, 100, 8);
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
       doc.text("DEPARTMENT-WISE BILLING REPORT", 62, 36);
-
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
       const refNo = `Ref No: PICT/CNTN/${dateStr}/${deptCode}-01`;
       const dateRangeText = `Date: ${startDate ? new Date(startDate).toLocaleDateString('en-GB') : 'All'} to ${endDate ? new Date(endDate).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}`;
-      
       doc.text(refNo, 14, 50);
       doc.text(dateRangeText, 140, 50);
       doc.setFont("helvetica", "bold");
-      
-      // 🚀 UPDATED: Department header includes year filter if selected
       const yearText = reportYearFilter ? `(${reportYearFilter.toUpperCase()})` : "ALL YEARS";
       doc.text(`Department: ${deptCode} DEPARTMENT ${yearText}`, 14, 58);
 
@@ -194,40 +187,23 @@ const CoordinatorDashboard = () => {
           const rawDate = rawDateObj.toLocaleDateString('en-GB');
           const orderDateIso = rawDateObj.toISOString().split('T')[0];
           const baseName = order.facultyId?.fullName || 'Deleted/Unknown User';
-          
           const matchedFaculty = faculty.find(f => f.voucherCode === order.voucherCode || (order.facultyId && f._id === (order.facultyId._id || order.facultyId)));
-          const yearScope = matchedFaculty?.academicYear || 'N/A';
-          
+          const yearScopeFac = matchedFaculty?.academicYear || 'N/A';
           let activeSubjects = 'No Subjects';
           if (matchedFaculty?.assignedSubjects && matchedFaculty.assignedSubjects.length > 0) {
               const relevantSubs = matchedFaculty.assignedSubjects.filter(sub => {
                   const parts = sub.split('|');
-                  if (parts.length === 3) {
-                      return orderDateIso >= parts[0] && orderDateIso <= parts[1];
-                  }
+                  if (parts.length === 3) return orderDateIso >= parts[0] && orderDateIso <= parts[1];
                   return true; 
               }).map(sub => {
                   const parts = sub.split('|');
                   return parts.length === 3 ? parts[2] : sub;
               });
-
-              if (relevantSubs.length > 0) {
-                  activeSubjects = relevantSubs.join(', ');
-              } else {
-                  activeSubjects = "Off-Duty / No Exam";
-              }
+              activeSubjects = relevantSubs.length > 0 ? relevantSubs.join(', ') : "Off-Duty / No Exam";
           }
-
           const groupingKey = `${baseName}_${rawDate}`; 
-
           if (!facultyTotals[groupingKey]) {
-              facultyTotals[groupingKey] = { 
-                  displayName: baseName, 
-                  date: rawDate, 
-                  yearAndSubs: `${yearScope}\n${activeSubjects}`,
-                  items: [], 
-                  total: 0 
-              };
+              facultyTotals[groupingKey] = { displayName: baseName, date: rawDate, yearAndSubs: `${yearScopeFac}\n${activeSubjects}`, items: [], total: 0 };
           }
           facultyTotals[groupingKey].total += order.totalAmount;
           facultyTotals[groupingKey].items.push(order.items.map(i => `${i.itemName}(x${i.quantity})`).join(', '));
@@ -238,179 +214,101 @@ const CoordinatorDashboard = () => {
           const rawDateObj = new Date(order.createdAt || order.orderDate);
           const rawDate = rawDateObj.toLocaleDateString('en-GB');
           const orderDateIso = rawDateObj.toISOString().split('T')[0];
-          
           const actualGuestName = order.guestName || guests.find(g => g.voucherCode === order.voucherCode)?.guestName || 'Guest';
           const baseName = `${actualGuestName} \n(Host: ${order.facultyId?.fullName || 'Unknown'})`;
-          
           const hostFaculty = faculty.find(f => order.facultyId && f._id === (order.facultyId._id || order.facultyId));
-          const yearScope = hostFaculty?.academicYear || 'N/A';
-          
+          const yearScopeHost = hostFaculty?.academicYear || 'N/A';
           let activeSubjects = 'No Subjects';
           if (hostFaculty?.assignedSubjects && hostFaculty.assignedSubjects.length > 0) {
               const relevantSubs = hostFaculty.assignedSubjects.filter(sub => {
                   const parts = sub.split('|');
-                  if (parts.length === 3) {
-                      return orderDateIso >= parts[0] && orderDateIso <= parts[1];
-                  }
+                  if (parts.length === 3) return orderDateIso >= parts[0] && orderDateIso <= parts[1];
                   return true;
               }).map(sub => {
                   const parts = sub.split('|');
                   return parts.length === 3 ? parts[2] : sub;
               });
-
-              if (relevantSubs.length > 0) {
-                  activeSubjects = relevantSubs.join(', ');
-              } else {
-                  activeSubjects = "Off-Duty / No Exam";
-              }
+              activeSubjects = relevantSubs.length > 0 ? relevantSubs.join(', ') : "Off-Duty / No Exam";
           }
-
           const groupingKey = `${baseName}_${rawDate}`;
           if (!guestTotals[groupingKey]) {
-             guestTotals[groupingKey] = { 
-                 displayName: baseName, 
-                 date: rawDate, 
-                 yearAndSubs: `${yearScope}\n${activeSubjects}`,
-                 items: [], 
-                 total: 0 
-             };
+             guestTotals[groupingKey] = { displayName: baseName, date: rawDate, yearAndSubs: `${yearScopeHost}\n${activeSubjects}`, items: [], total: 0 };
           }
           guestTotals[groupingKey].total += order.totalAmount;
           guestTotals[groupingKey].items.push(order.items.map(i => `${i.itemName}(x${i.quantity})`).join(', '));
       });
 
       let currentY = 70;
-
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.text("SECTION A: FACULTY CONSUMPTION", 14, currentY);
-      
-      const facultyTableData = Object.values(facultyTotals).map((data, index) => [ 
-          index + 1, 
-          data.date, 
-          data.displayName, 
-          data.yearAndSubs,
-          data.items.join(' | '), 
-          `Rs. ${data.total}` 
-      ]);
+      const facultyTableData = Object.values(facultyTotals).map((data, index) => [ index + 1, data.date, data.displayName, data.yearAndSubs, data.items.join(' | '), `Rs. ${data.total}` ]);
       const facultySum = Object.values(facultyTotals).reduce((sum, val) => sum + val.total, 0);
-
       autoTable(doc, {
         startY: currentY + 3,
         head: [['Sr', 'Date', 'Faculty Name', 'Year & Specific Subject', 'Items Consumed', 'Total (Rs)']], 
         body: facultyTableData.length ? facultyTableData : [['-', '-', 'No Faculty Orders', '-', '-', '-']],
-        theme: 'grid',
-        headStyles: { fillColor: [50, 50, 50] },
-        bodyStyles: { fillColor: false }, 
-        alternateRowStyles: { fillColor: false },
-        styles: { fontSize: 8, cellPadding: 3 },
+        theme: 'grid', headStyles: { fillColor: [50, 50, 50] }, bodyStyles: { fillColor: false }, 
+        alternateRowStyles: { fillColor: false }, styles: { fontSize: 8, cellPadding: 3 },
         columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
       });
-
       currentY = doc.lastAutoTable.finalY;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
       doc.text(`Sub-Total (Faculty): Rs. ${facultySum}/-`, 140, currentY + 8);
-
       currentY += 18;
       doc.text("SECTION B: GUEST/EXTERNAL CONSUMPTION", 14, currentY);
-      
-      const guestTableData = Object.values(guestTotals).map((data, index) => [ 
-          index + 1, 
-          data.date, 
-          data.displayName, 
-          data.yearAndSubs,
-          data.items.join(' | '), 
-          `Rs. ${data.total}` 
-      ]);
+      const guestTableData = Object.values(guestTotals).map((data, index) => [ index + 1, data.date, data.displayName, data.yearAndSubs, data.items.join(' | '), `Rs. ${data.total}` ]);
       const guestSum = Object.values(guestTotals).reduce((sum, val) => sum + val.total, 0);
-
       autoTable(doc, {
         startY: currentY + 3,
         head: [['Sr', 'Date', 'Guest Details', 'Year & Specific Subject', 'Items Consumed', 'Total (Rs)']], 
         body: guestTableData.length ? guestTableData : [['-', '-', 'No Guest Orders', '-', '-', '-']],
-        theme: 'grid',
-        headStyles: { fillColor: [50, 50, 50] },
-        bodyStyles: { fillColor: false },
-        alternateRowStyles: { fillColor: false },
-        styles: { fontSize: 8, cellPadding: 3 },
+        theme: 'grid', headStyles: { fillColor: [50, 50, 50] }, bodyStyles: { fillColor: false }, 
+        alternateRowStyles: { fillColor: false }, styles: { fontSize: 8, cellPadding: 3 },
         columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
       });
-
       currentY = doc.lastAutoTable.finalY;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
       doc.text(`Sub-Total (Guest): Rs. ${guestSum}/-`, 140, currentY + 8);
-
       const grandTotal = facultySum + guestSum;
       doc.rect(130, currentY + 15, 66, 10);
       doc.setFontSize(12);
       doc.text(`GRAND TOTAL`, 135, currentY + 22);
       doc.text(`Rs. ${grandTotal}`, 175, currentY + 22);
-
       const pageHeight = doc.internal.pageSize.getHeight();
       let signatureY = currentY + 50; 
-
-      if (signatureY + 30 > pageHeight - 20) {
-          doc.addPage();
-          signatureY = 40; 
-      }
-
+      if (signatureY + 30 > pageHeight - 20) { doc.addPage(); signatureY = 40; }
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
-      doc.line(20, signatureY, 60, signatureY);
-      doc.text("MESS MANAGER", 25, signatureY + 6);
-      doc.line(85, signatureY, 135, signatureY);
-      doc.text("PRACTICAL COORDINATOR", 87, signatureY + 6);
-      doc.line(160, signatureY, 200, signatureY);
-      doc.text("HEAD OF DEPARTMENT", 162, signatureY + 6);
-      doc.line(45, signatureY + 25, 85, signatureY + 25);
-      doc.text("CEO", 60, signatureY + 31);
-      doc.line(135, signatureY + 25, 175, signatureY + 25);
-      doc.text("PRINCIPAL", 148, signatureY + 31);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      const downloadTime = new Date().toLocaleString('en-GB', {
-          day: '2-digit', month: 'short', year: 'numeric', 
-          hour: '2-digit', minute: '2-digit', hour12: true
-      });
+      doc.line(20, signatureY, 60, signatureY); doc.text("MESS MANAGER", 25, signatureY + 6);
+      doc.line(85, signatureY, 135, signatureY); doc.text("PRACTICAL COORDINATOR", 87, signatureY + 6);
+      doc.line(160, signatureY, 200, signatureY); doc.text("HEAD OF DEPARTMENT", 162, signatureY + 6);
+      doc.line(45, signatureY + 25, 85, signatureY + 25); doc.text("CEO", 60, signatureY + 31);
+      doc.line(135, signatureY + 25, 175, signatureY + 25); doc.text("PRINCIPAL", 148, signatureY + 31);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7);
+      const downloadTime = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
       doc.text(`SYSTEM GENERATED REPORT | PICT CANTEEN & MESS SECTION | DOWNLOADED: ${downloadTime.toUpperCase()}`, 48, pageHeight - 5);
-
       doc.save(`${deptCode}_Billing_Report_${reportYearFilter || 'All'}.pdf`);
       toast.success("PDF Report Downloaded!"); 
     };
-
     img.onerror = () => toast.error("Failed to load watermark image."); 
   };
 
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to revoke this voucher and remove the examiner?")) {
-      try { 
-          await API.delete(`/faculty/remove/${id}`); 
-          toast.success("Examiner deleted and voucher revoked."); 
-          fetchFaculty(); 
-      } 
+      try { await API.delete(`/faculty/remove/${id}`); toast.success("Examiner deleted and voucher revoked."); fetchFaculty(); } 
       catch (err) { toast.error("Failed to delete."); } 
     }
   };
 
   const handleResetSystem = async () => {
      if(window.confirm(`WARNING: This will deactivate ALL faculty records for ${deptCode}. Are you absolutely sure?`)) {
-         try { 
-             await API.delete(`/faculty/department/${deptId}/reset`); 
-             setFaculty([]); 
-             toast.success(`All faculty records for ${deptCode} have been cleared.`); 
-         } 
+         try { await API.delete(`/faculty/department/${deptId}/reset`); setFaculty([]); toast.success(`All faculty records for ${deptCode} have been cleared.`); } 
          catch (err) { toast.error("Failed to reset system."); } 
      }
   };
 
-  // WhatsApp Feature Logic
   const handleWhatsAppShare = (member) => {
     const rawMobile = String(member.mobile).trim();
     const phoneNumber = rawMobile.startsWith('91') ? rawMobile : `91${rawMobile}`;
-    
     const message = `*PICT EXAM PORTAL - CANTEEN VOUCHER*%0A%0A` +
                     `Dear Prof. *${member.fullName}*,%0A%0A` +
                     `You have been assigned as an examiner for the *${deptCode}* Department.%0A%0A` +
@@ -418,9 +316,7 @@ const CoordinatorDashboard = () => {
                     `• *Access Code:* ${member.voucherCode}%0A` +
                     `• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}%0A%0A` +
                     `_Please present this code at the canteen counter._`;
-
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
-    window.open(whatsappUrl, '_blank');
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
   };
 
   const handleSendEmail = (member) => {
@@ -431,26 +327,13 @@ const CoordinatorDashboard = () => {
 
   const handleAddSingle = async (e) => {
     e.preventDefault();
-    if (!deptId || !deptCode) {
-        toast.error("Authentication Error: Department ID is missing. Please log out and log back in."); 
-        return;
-    }
-
+    if (!deptId || !deptCode) { toast.error("Authentication Error. Please re-login."); return; }
     try {
-      const smartSubject = formData.assignedSubject 
-          ? `${formData.validFrom}|${formData.validTill}|${formData.assignedSubject}` 
-          : '';
-
-      await API.post('/faculty/add', { 
-          ...formData, 
-          assignedSubject: smartSubject, 
-          departmentId: deptId, 
-          deptCode: deptCode 
-      });
+      const smartSubject = formData.assignedSubject ? `${formData.validFrom}|${formData.validTill}|${formData.assignedSubject}` : '';
+      await API.post('/faculty/add', { ...formData, assignedSubject: smartSubject, departmentId: deptId, deptCode: deptCode });
       setIsModalOpen(false);
-      setFormData({ fullName: '', email: '', mobile: '', academicYear: '2025-26', assignedSubject: '', validFrom: new Date().toISOString().split('T')[0], validTill: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0] });
-      toast.success("Examiner added successfully!"); 
-      fetchFaculty();
+      setFormData({ fullName: '', email: '', mobile: '', academicYear: isMTech ? '1st Yr (Regular)' : '2nd Yr (Regular)', assignedSubject: '', validFrom: new Date().toISOString().split('T')[0], validTill: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0] });
+      toast.success("Examiner added successfully!"); fetchFaculty();
     } catch (err) { toast.error("Failed to add faculty."); } 
   };
 
@@ -458,11 +341,11 @@ const CoordinatorDashboard = () => {
     e.preventDefault();
     try {
         const res = await API.post('/guests/add', guestFormData);
-        toast.success(`Success! Guest Code is: ${res.data.voucher}`); 
+        toast.success(`Success! Guest Code: ${res.data.voucher}`); 
         setIsGuestModalOpen(false);
         setGuestFormData({ guestName: '', facultyVoucher: '', validFrom: new Date().toISOString().split('T')[0], validTill: new Date().toISOString().split('T')[0] });
         fetchGuests();
-    } catch (err) { toast.error(`Failed to add guest: ${err.response?.data?.error || err.message}`); } 
+    } catch (err) { toast.error(`Failed: ${err.response?.data?.error || err.message}`); } 
   };
 
   const handleFileUpload = (e) => { 
@@ -474,251 +357,140 @@ const CoordinatorDashboard = () => {
       const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
       const rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
       const facultyMap = new Map();
-
       rawData.forEach(row => {
         const getVal = (searchKey) => {
             const actualKey = Object.keys(row).find(k => k.trim().toLowerCase() === searchKey.toLowerCase());
             return actualKey ? row[actualKey] : "";
         };
-
-        const rawName = getVal('Internal Examiner');
-        if (!rawName) return; 
-
+        const rawName = getVal('Internal Examiner'); if (!rawName) return; 
         const cleanedName = rawName.includes('-') ? rawName.split('-')[1].trim() : rawName;
         const mobile = String(getVal('Mobile No.')).trim();
-        
         const fromDateStr = formatExcelDateSafely(getVal('From Date'));
         const tillDateStr = formatExcelDateSafely(getVal('End Date'));
-        
         const patternName = String(getVal('Pattern Name') || "");
-        const extractedYear = patternName.includes('(') ? patternName.split('(')[1].substring(0, 4) : "2025-26";
+        const extractedYear = patternName.includes('(') ? patternName.split('(')[1].substring(0, 4) : (isMTech ? "1st Yr" : "2nd Yr");
         const finalYearScope = yearScope !== '' ? yearScope : extractedYear;
-        
-        let subjectName = String(getVal('Subject Name') || "");
-        subjectName = subjectName.replace(/^\(.*?\)-\s*\d*\s*/, '').trim();
-
+        let subjectName = String(getVal('Subject Name') || "").replace(/^\(.*?\)-\s*\d*\s*/, '').trim();
         const subjectType = getVal('Subject Type');
         const combinedSubject = subjectName && subjectType ? `${subjectName} (${subjectType})` : subjectName || subjectType;
-
         const smartSubject = combinedSubject ? `${fromDateStr}|${tillDateStr}|${combinedSubject}` : null;
-
         if (facultyMap.has(mobile)) {
           const existing = facultyMap.get(mobile);
           if (fromDateStr < existing.validFrom) existing.validFrom = fromDateStr;
           if (tillDateStr > existing.validTill) existing.validTill = tillDateStr;
           existing.academicYear = finalYearScope; 
-          
-          if (smartSubject && !existing.assignedSubjects.includes(smartSubject)) {
-              existing.assignedSubjects.push(smartSubject);
-          }
+          if (smartSubject && !existing.assignedSubjects.includes(smartSubject)) existing.assignedSubjects.push(smartSubject);
         } else {
-          facultyMap.set(mobile, { 
-              fullName: cleanedName, 
-              email: `${cleanedName.replace(/\s+/g, '.').toLowerCase()}@pict.edu`, 
-              mobile: mobile, 
-              academicYear: finalYearScope, 
-              departmentId: deptId, 
-              validFrom: fromDateStr, 
-              validTill: tillDateStr,
-              assignedSubjects: smartSubject ? [smartSubject] : [] 
-          });
+          facultyMap.set(mobile, { fullName: cleanedName, email: `${cleanedName.replace(/\s+/g, '.').toLowerCase()}@pict.edu`, mobile, academicYear: finalYearScope, departmentId: deptId, validFrom: fromDateStr, validTill: tillDateStr, assignedSubjects: smartSubject ? [smartSubject] : [] });
         }
       });
-
-      const formattedData = Array.from(facultyMap.values());
       try {
-        const res = await API.post('/faculty/bulk-add', formattedData);
-        toast.success(`Added ${res.data.added} new examiners and extended ${res.data.extended} existing vouchers.`); 
-        fetchFaculty(); 
+        const res = await API.post('/faculty/bulk-add', Array.from(facultyMap.values()));
+        toast.success(`Success: ${res.data.added} added, ${res.data.extended} extended.`); fetchFaculty(); 
         if(fileInputRef.current) fileInputRef.current.value = ""; 
-      } catch (err) { 
-        toast.error(`Upload Failed. Please check the file format.`); 
-      }
+      } catch (err) { toast.error(`Upload Failed.`); }
     };
     reader.readAsBinaryString(file);
   };
 
   const filteredFaculty = faculty.filter(f => {
-      const matchesSearch = f.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            f.voucherCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            (f.email && f.email.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesSearch = f.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || f.voucherCode.toLowerCase().includes(searchTerm.toLowerCase()) || (f.email && f.email.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesYear = yearScope === '' || f.academicYear === yearScope;
       return matchesSearch && matchesYear;
   });
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-[#f8f9fc] relative font-sans h-screen overflow-hidden">
-      
-      {/* DESKTOP SIDEBAR */}
+      {/* SIDEBAR */}
       <div className="w-64 bg-[#0a1128] text-white flex flex-col shadow-2xl z-10 shrink-0 hidden md:flex">
         <div className="p-6 border-b border-white/10">
           <h2 className="text-xl font-bold italic tracking-wider text-blue-400 mb-6">PICT EXAM PORTAL</h2>
-          
           <div className="bg-white/5 p-3 rounded-xl border border-white/10 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-lg font-bold shadow-inner shrink-0">
-                  {userName.charAt(0).toUpperCase()}
-              </div>
+              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-lg font-bold shadow-inner shrink-0">{userName.charAt(0).toUpperCase()}</div>
               <div className="overflow-hidden">
                   <p className="text-sm font-bold text-white truncate" title={userName}>{userName}</p>
-                  <p className="text-[10px] font-medium text-blue-300 uppercase tracking-widest truncate">{deptName} Dept</p>
+                  <p className="text-[10px] font-medium text-blue-300 uppercase tracking-widest truncate">{deptName}</p>
               </div>
           </div>
         </div>
-
         <nav className="flex-1 p-4 space-y-2 mt-2">
-          <button onClick={() => setActiveTab('faculty')} className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'faculty' ? 'bg-blue-600/20 text-blue-400 shadow-inner-sm' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
-            <Users size={20} /> Faculty Management
-          </button>
-          <button onClick={() => setActiveTab('guests')}className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'guests' ? 'bg-blue-600/20 text-blue-400 shadow-inner-sm' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
-            <Ticket size={20} /> Guest Vouchers
-          </button>
-          <button className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-gray-500 cursor-not-allowed opacity-50" title="Coming Soon">
-            <Calendar size={20} /> Exam Schedule
-          </button>
-          <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'reports' ? 'bg-blue-600/20 text-blue-400 shadow-inner-sm' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
-            <BarChart3 size={20} /> Reports & Logs
-          </button>
+          <button onClick={() => setActiveTab('faculty')} className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'faculty' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><Users size={20} /> Faculty Management</button>
+          <button onClick={() => setActiveTab('guests')}className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'guests' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><Ticket size={20} /> Guest Vouchers</button>
+          <button className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-gray-500 cursor-not-allowed opacity-50"><Calendar size={20} /> Exam Schedule</button>
+          <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${activeTab === 'reports' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><BarChart3 size={20} /> Reports & Logs</button>
         </nav>
-        <button onClick={() => { sessionStorage.clear(); navigate('/'); }} className="p-6 text-gray-400 hover:text-white flex items-center gap-3 border-t border-white/10 transition-colors">
-          <LogOut size={20} /> Logout
-        </button>
+        <button onClick={() => { sessionStorage.clear(); navigate('/'); }} className="p-6 text-gray-400 hover:text-white flex items-center gap-3 border-t border-white/10 transition-colors"><LogOut size={20} /> Logout</button>
       </div>
 
-      {/* MOBILE HEADER */}
+      {/* MOBILE */}
       <div className="md:hidden bg-[#0a1128] text-white p-4 flex justify-between items-center z-20 shrink-0 shadow-md">
-         <div>
-             <h2 className="text-lg font-bold italic tracking-wider text-blue-400 mb-0.5">PICT EXAM PORTAL</h2>
-             <p className="text-[10px] text-gray-400 font-medium">Welcome, <span className="text-white font-bold">{userName}</span> ({deptCode})</p>
-         </div>
-         
+         <div><h2 className="text-lg font-bold italic tracking-wider text-blue-400">PICT EXAM PORTAL</h2></div>
          <div className="flex gap-3 items-center">
-             <select 
-                 className="bg-white/10 text-white border border-white/20 rounded-md text-xs p-1.5 outline-none"
-                 value={activeTab} 
-                 onChange={(e) => setActiveTab(e.target.value)}
-             >
-                 <option value="faculty" className="text-slate-800">Faculty</option>
-                 <option value="guests" className="text-slate-800">Guests</option>
-                 <option value="reports" className="text-slate-800">Reports</option>
+             <select className="bg-white/10 text-white border border-white/20 rounded-md text-xs p-1.5 outline-none" value={activeTab} onChange={(e) => setActiveTab(e.target.value)}>
+                 <option value="faculty" className="text-slate-800">Faculty</option><option value="guests" className="text-slate-800">Guests</option><option value="reports" className="text-slate-800">Reports</option>
              </select>
-             <button onClick={() => { sessionStorage.clear(); navigate('/'); }} className="text-red-400 hover:text-red-300">
-                 <LogOut size={18} />
-             </button>
+             <button onClick={() => { sessionStorage.clear(); navigate('/'); }} className="text-red-400"><LogOut size={18} /></button>
          </div>
       </div>
 
-      {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        
-        {/* ================= FACULTY TAB ================= */}
         {activeTab === 'faculty' && (
           <>
             <header className="bg-white p-4 md:px-8 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm z-10 shrink-0">
               <h1 className="text-xl md:text-2xl font-bold text-gray-800">Faculty Overview</h1>
               <div className="flex gap-2 w-full sm:w-auto">
-                <button onClick={handleExportCSV} className="flex-1 sm:flex-none justify-center px-3 py-2 border-2 border-blue-100 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1.5 text-blue-600 hover:bg-blue-50 transition-all"><Download size={16} /> <span className="hidden sm:inline">Export CSV</span><span className="sm:hidden">CSV</span></button>
-                <button onClick={handleResetSystem} className="flex-1 sm:flex-none justify-center px-3 py-2 border-2 border-red-100 bg-red-50 text-red-600 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1.5 hover:bg-red-100 transition-all"><RotateCcw size={16} /> <span className="hidden sm:inline">Reset System</span><span className="sm:hidden">Reset</span></button>
+                <button onClick={handleExportCSV} className="flex-1 sm:flex-none justify-center px-3 py-2 border-2 border-blue-100 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1.5 text-blue-600 hover:bg-blue-50"><Download size={16} /> CSV</button>
+                <button onClick={handleResetSystem} className="flex-1 sm:flex-none justify-center px-3 py-2 border-2 border-red-100 bg-red-50 text-red-600 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1.5 hover:bg-red-100"><RotateCcw size={16} /> Reset</button>
               </div>
             </header>
-
-            <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-6 overflow-hidden">
-               
+            <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 overflow-hidden">
                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 shrink-0">
-                <div className="col-span-2 lg:col-span-1 bg-white p-5 rounded-2xl border shadow-sm flex flex-row lg:flex-col justify-between items-center lg:items-start">
-                    <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-widest lg:mb-1">Total Examiners</p>
-                    <h3 className="text-2xl md:text-3xl font-black text-gray-800">{totalExaminers}</h3>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-green-100 shadow-sm flex flex-col justify-center items-center lg:items-start">
-                    <p className="text-[10px] md:text-[11px] font-bold text-green-600 uppercase tracking-widest mb-1 text-center lg:text-left">Active</p>
-                    <h3 className="text-2xl md:text-3xl font-black text-green-600">{activeVouchers}</h3>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-orange-100 shadow-sm flex flex-col justify-center items-center lg:items-start">
-                    <p className="text-[10px] md:text-[11px] font-bold text-orange-500 uppercase tracking-widest mb-1 text-center lg:text-left">Pending</p>
-                    <h3 className="text-2xl md:text-3xl font-black text-orange-500">{pendingExpired}</h3>
-                </div>
+                <div className="col-span-2 lg:col-span-1 bg-white p-5 rounded-2xl border shadow-sm flex flex-row lg:flex-col justify-between items-center lg:items-start"><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Examiners</p><h3 className="text-2xl md:text-3xl font-black text-gray-800">{totalExaminers}</h3></div>
+                <div className="bg-white p-5 rounded-2xl border border-green-100 shadow-sm flex flex-col justify-center items-center lg:items-start"><p className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Active</p><h3 className="text-2xl md:text-3xl font-black text-green-600">{activeVouchers}</h3></div>
+                <div className="bg-white p-5 rounded-2xl border border-orange-100 shadow-sm flex flex-col justify-center items-center lg:items-start"><p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">Pending</p><h3 className="text-2xl md:text-3xl font-black text-orange-500">{pendingExpired}</h3></div>
               </div>
-
               <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col xl:flex-row gap-4 shrink-0 items-center">
-                <div className="relative w-full xl:w-auto flex-1">
-                  <Search className="absolute left-4 top-3.5 text-gray-400" size={18} />
-                  <input type="text" placeholder="Search Name, Code or Email..." className="w-full pl-12 pr-4 py-2.5 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 transition-all text-sm" onChange={(e) => setSearchTerm(e.target.value)} />
-                </div>
-                
+                <div className="relative w-full xl:w-auto flex-1"><Search className="absolute left-4 top-3.5 text-gray-400" size={18} /><input type="text" placeholder="Search..." className="w-full pl-12 pr-4 py-2.5 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 text-sm" onChange={(e) => setSearchTerm(e.target.value)} /></div>
                 <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-                  <select className="w-full sm:w-auto px-4 py-2.5 border-2 border-gray-100 rounded-xl text-gray-600 text-sm font-bold outline-none focus:border-blue-500 hover:bg-gray-50 bg-white" value={yearScope} onChange={(e) => setYearScope(e.target.value)}>
-                    <option value="">All Years (Excel)</option>
-                    <option value="2nd Yr (Regular)">2nd Yr (Regular)</option>
-                    <option value="2nd Yr (Backlog)">2nd Yr (Backlog)</option>
-                    <option value="3rd Yr (Regular)">3rd Yr (Regular)</option>
-                    <option value="3rd Yr (Backlog)">3rd Yr (Backlog)</option>
-                    <option value="4th Yr (Regular)">4th Yr (Regular)</option>
+                  <select className="w-full sm:w-auto px-4 py-2.5 border-2 border-gray-100 rounded-xl text-gray-600 text-sm font-bold outline-none bg-white" value={yearScope} onChange={(e) => setYearScope(e.target.value)}>
+                    <option value="">All Years</option>
+                    {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
-                  
                   <div className="flex gap-2 w-full sm:w-auto">
                     <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
-                    <button onClick={() => fileInputRef.current.click()} className="flex-1 sm:flex-none justify-center px-4 py-2.5 border-2 border-yellow-100 rounded-xl text-sm font-bold flex items-center gap-2 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-all">
-                        <FileSpreadsheet size={16} /> <span className="hidden sm:inline">Upload</span><span className="sm:hidden">Excel</span>
-                    </button>
-                    <button className="flex-1 sm:flex-none justify-center px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 flex items-center gap-2 hover:bg-blue-700 transition-all" onClick={() => setIsModalOpen(true)}>
-                        <Plus size={18} /> New
-                    </button>
+                    <button onClick={() => fileInputRef.current.click()} className="flex-1 sm:flex-none justify-center px-4 py-2.5 border-2 border-yellow-100 rounded-xl text-sm font-bold flex items-center gap-2 text-yellow-700 bg-yellow-50 hover:bg-yellow-100"><FileSpreadsheet size={16} /> Upload</button>
+                    <button className="flex-1 sm:flex-none justify-center px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg flex items-center gap-2 hover:bg-blue-700" onClick={() => setIsModalOpen(true)}><Plus size={18} /> New</button>
                   </div>
                 </div>
               </div>
-
-              {/* Table */}
               <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-y-auto overflow-x-auto relative">
                 <table className="w-full text-left border-collapse min-w-[850px]">
-                  <thead className="bg-white/95 backdrop-blur-sm border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
-                    <tr>
-                      <th className="p-4 pl-6 md:pl-8">Faculty Details</th>
-                      <th className="p-4">Assigned Subjects</th>
-                      <th className="p-4 text-center">Year Scope</th>
-                      <th className="p-4 text-center">Access Code</th>
-                      <th className="p-4 text-center">Validity Period</th>
-                      <th className="p-4 text-center pr-6 md:pr-8">Actions</th>
-                    </tr>
+                  <thead className="bg-white/95 backdrop-blur-sm border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase sticky top-0 z-10 shadow-sm">
+                    <tr><th className="p-4 pl-6 md:pl-8">Faculty Details</th><th className="p-4">Assigned Subjects</th><th className="p-4 text-center">Year Scope</th><th className="p-4 text-center">Access Code</th><th className="p-4 text-center">Validity Period</th><th className="p-4 text-center pr-6 md:pr-8">Actions</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-sm">
                     {filteredFaculty.map((f) => (
                       <tr key={f._id} className="hover:bg-gray-50/50 transition-all group">
-                        <td className="p-4 pl-6 md:pl-8 align-top">
-                          <p className="font-bold text-gray-800 text-sm mb-0.5">{f.fullName}</p>
-                          <p className="text-[11px] text-gray-400 font-medium">{f.email} • {f.mobile}</p>
-                        </td>
+                        <td className="p-4 pl-6 md:pl-8 align-top"><p className="font-bold text-gray-800 text-sm mb-0.5">{f.fullName}</p><p className="text-[11px] text-gray-400 font-medium">{f.email} • {f.mobile}</p></td>
                         <td className="p-4 align-top max-w-[200px]">
                           {f.assignedSubjects && f.assignedSubjects.length > 0 ? (
                               <div className="flex flex-col gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
                                   {f.assignedSubjects.map((sub, idx) => {
                                       const parts = sub.split('|');
-                                      let dispText = sub;
-                                      if (parts.length === 3) {
-                                          const fromFormatted = new Date(parts[0]).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'});
-                                          dispText = `${parts[2]} (${fromFormatted})`;
-                                      }
-
-                                      return (
-                                      <span key={idx} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200 leading-tight w-max max-w-full truncate" title={parts.length === 3 ? parts[2] : sub}>
-                                          {dispText}
-                                      </span>
-                                      )
+                                      let dispText = parts.length === 3 ? `${parts[2]} (${new Date(parts[0]).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})})` : sub;
+                                      return <span key={idx} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200 leading-tight w-max max-w-full truncate">{dispText}</span>
                                   })}
                               </div>
-                          ) : (
-                              <span className="text-xs text-gray-400 italic">No Subjects Assigned</span>
-                          )}
+                          ) : <span className="text-xs text-gray-400 italic">No Subjects</span>}
                         </td>
-                        <td className="p-4 text-center align-top"><span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">{f.academicYear}</span></td>
-                        <td className="p-4 text-center align-top"><span className="font-mono font-bold text-blue-600 bg-blue-50/50 px-3 py-1 rounded-md text-[11px] tracking-wider whitespace-nowrap">{f.voucherCode}</span></td>
-                        <td className="p-4 text-center text-[11px] text-gray-500 font-semibold align-top whitespace-nowrap">{new Date(f.validFrom).toLocaleDateString('en-GB')} — {new Date(f.validTill).toLocaleDateString('en-GB')}</td>
-                        <td className="p-4 pr-6 md:pr-8 text-center align-top">
-                          <div className="flex justify-center gap-2">
-                             {/* 🚀 Actions Column with WhatsApp */}
-                            <button onClick={() => handleWhatsAppShare(f)} className="p-1.5 border border-green-200 rounded text-green-500 hover:text-green-600 hover:border-green-300 transition-all bg-white shadow-sm" title="Share via WhatsApp"><MessageSquare size={16} /></button>
-                            <button onClick={() => handleSendEmail(f)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-blue-600 hover:border-blue-300 transition-all bg-white shadow-sm" title="Send Email"><Mail size={16} /></button>
-                            <button onClick={() => handleDelete(f._id)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-red-500 hover:border-red-300 transition-all bg-white shadow-sm" title="Revoke Voucher"><Trash2 size={16} /></button>
-                          </div>
-                        </td>
+                        <td className="p-4 text-center align-top"><span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">{f.academicYear}</span></td>
+                        <td className="p-4 text-center align-top"><span className="font-mono font-bold text-blue-600 bg-blue-50/50 px-3 py-1 rounded-md text-[11px]">{f.voucherCode}</span></td>
+                        <td className="p-4 text-center text-[11px] text-gray-500 font-semibold align-top">{new Date(f.validFrom).toLocaleDateString('en-GB')} — {new Date(f.validTill).toLocaleDateString('en-GB')}</td>
+                        <td className="p-4 pr-6 md:pr-8 text-center align-top"><div className="flex justify-center gap-2">
+                            <button onClick={() => handleWhatsAppShare(f)} className="p-1.5 border border-green-200 rounded text-green-500 hover:bg-green-50"><MessageSquare size={16} /></button>
+                            <button onClick={() => handleSendEmail(f)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-blue-600"><Mail size={16} /></button>
+                            <button onClick={() => handleDelete(f._id)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
+                          </div></td>
                       </tr>
                     ))}
                   </tbody>
@@ -728,51 +500,30 @@ const CoordinatorDashboard = () => {
           </>
         )}
 
-        {/* ================= GUESTS TAB ================= */}
         {activeTab === 'guests' && (
           <>
-            <header className="bg-white p-4 md:px-8 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm z-10 shrink-0">
+            <header className="bg-white p-4 md:px-8 border-b flex flex-col sm:flex-row justify-between items-center gap-4 shadow-sm z-10 shrink-0">
               <h1 className="text-xl md:text-2xl font-bold text-gray-800">Guest Vouchers</h1>
-              <button onClick={() => setIsGuestModalOpen(true)} className="w-full sm:w-auto justify-center px-6 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-purple-700 transition-all shadow-lg shadow-purple-200">
-                <Plus size={18} /> New Guest Pass
-              </button>
+              <button onClick={() => setIsGuestModalOpen(true)} className="px-6 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-purple-700 shadow-lg"><Plus size={18} /> New Guest Pass</button>
             </header>
-
-            <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-6 overflow-hidden">
+            <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 overflow-hidden">
               <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-y-auto overflow-x-auto relative">
                 <table className="w-full text-left border-collapse min-w-[700px]">
-                  <thead className="bg-white/95 backdrop-blur-sm border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
-                    <tr>
-                      <th className="p-4 pl-6 md:pl-8">Guest Details</th>
-                      <th className="p-4">Host Faculty</th>
-                      <th className="p-4 text-center">Access Code</th>
-                      <th className="p-4 text-center">Validity Period</th>
-                      <th className="p-4 text-center pr-6 md:pr-8">Status</th>
-                    </tr>
+                  <thead className="bg-white/95 backdrop-blur-sm border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase sticky top-0 z-10 shadow-sm">
+                    <tr><th className="p-4 pl-6 md:pl-8">Guest Details</th><th className="p-4">Host Faculty</th><th className="p-4 text-center">Access Code</th><th className="p-4 text-center">Validity Period</th><th className="p-4 text-center pr-6 md:pr-8">Status</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-sm">
-                    {guests.length === 0 ? (
-                      <tr><td colSpan="5" className="text-center p-8 text-gray-400">No guests have been added yet.</td></tr>
-                    ) : (
+                    {guests.length === 0 ? <tr><td colSpan="5" className="text-center p-8 text-gray-400">No guests added.</td></tr> :
                       guests.map((g) => (
                         <tr key={g._id} className="hover:bg-gray-50/50 transition-all group">
-                          <td className="p-4 pl-6 md:pl-8">
-                            <p className="font-bold text-gray-800 text-sm mb-0.5">{g.guestName}</p>
-                            <p className="text-[11px] text-gray-400 font-medium">Guest of {deptCode}</p>
-                          </td>
-                          <td className="p-4"><span className="bg-gray-100 text-gray-600 px-3 py-1.5 rounded-md text-[11px] font-bold">{g.facultyId?.fullName || <span className="text-red-400 italic">Deleted User</span>}</span></td>
+                          <td className="p-4 pl-6 md:pl-8"><p className="font-bold text-gray-800 text-sm mb-0.5">{g.guestName}</p><p className="text-[11px] text-gray-400 font-medium">Guest of {deptCode}</p></td>
+                          <td className="p-4"><span className="bg-gray-100 text-gray-600 px-3 py-1.5 rounded-md text-[11px] font-bold">{g.facultyId?.fullName || "Deleted User"}</span></td>
                           <td className="p-4 text-center"><span className="font-mono font-bold text-purple-600 bg-purple-50/50 px-3 py-1 rounded-md text-[11px] tracking-wider">{g.voucherCode}</span></td>
                           <td className="p-4 text-center text-[11px] text-gray-500 font-semibold">{new Date(g.validFrom).toLocaleDateString('en-GB')} — {new Date(g.validTill).toLocaleDateString('en-GB')}</td>
-                          <td className="p-4 text-center pr-6 md:pr-8">
-                            {new Date() > new Date(g.validTill) || !g.isActive ? (
-                              <span className="text-red-500 bg-red-50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Expired</span>
-                            ) : (
-                              <span className="text-green-500 bg-green-50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Active</span>
-                            )}
-                          </td>
+                          <td className="p-4 text-center pr-6 md:pr-8">{new Date() > new Date(g.validTill) || !g.isActive ? <span className="text-red-500 bg-red-50 px-2 py-1 rounded text-[10px] font-bold">Expired</span> : <span className="text-green-500 bg-green-50 px-2 py-1 rounded text-[10px] font-bold">Active</span>}</td>
                         </tr>
                       ))
-                    )}
+                    }
                   </tbody>
                 </table>
               </div>
@@ -780,109 +531,55 @@ const CoordinatorDashboard = () => {
           </>
         )}
 
-        {/* ================= REPORTS TAB ================= */}
         {activeTab === 'reports' && (
           <>
           <header className="bg-white p-4 md:px-8 border-b flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shadow-sm z-10 shrink-0">
               <h1 className="text-xl md:text-2xl font-bold text-gray-800">Canteen Usage Logs</h1>
-              
               <div className="flex flex-col lg:flex-row gap-4 w-full xl:w-auto items-start lg:items-center">
-                 
-                 {/* 🚀 NEW: Reports Filters (Date + Year Scope) */}
                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 lg:pr-4 lg:border-r border-gray-200 w-full lg:w-auto">
-                    
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase w-10 sm:w-auto">Year:</span>
-                        <select 
-                            className="text-xs p-2 border rounded-lg text-gray-600 outline-none focus:border-blue-500 font-bold bg-white"
-                            value={reportYearFilter}
-                            onChange={(e) => setReportYearFilter(e.target.value)}
-                        >
+                    <div className="flex items-center gap-2 w-full sm:w-auto"><span className="text-[10px] font-bold text-gray-400 uppercase">Year:</span>
+                        <select className="text-xs p-2 border rounded-lg text-gray-600 outline-none font-bold bg-white" value={reportYearFilter} onChange={(e) => setReportYearFilter(e.target.value)}>
                             <option value="">All Years</option>
-                            <option value="2nd Yr (Regular)">2nd Yr (Regular)</option>
-                            <option value="2nd Yr (Backlog)">2nd Yr (Backlog)</option>
-                            <option value="3rd Yr (Regular)">3rd Yr (Regular)</option>
-                            <option value="3rd Yr (Backlog)">3rd Yr (Backlog)</option>
-                            <option value="4th Yr (Regular)">4th Yr (Regular)</option>
+                            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                         </select>
                     </div>
-
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase w-10 sm:w-auto">From:</span>
-                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="flex-1 sm:flex-none text-xs p-2 border rounded-lg text-gray-600 outline-none focus:border-blue-500" />
-                    </div>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase w-10 sm:w-auto">To:</span>
-                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="flex-1 sm:flex-none text-xs p-2 border rounded-lg text-gray-600 outline-none focus:border-blue-500" />
-                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto"><span className="text-[10px] font-bold text-gray-400 uppercase">From:</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs p-2 border rounded-lg text-gray-600" /></div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto"><span className="text-[10px] font-bold text-gray-400 uppercase">To:</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs p-2 border rounded-lg text-gray-600" /></div>
                  </div>
-                
                  <div className="flex flex-row gap-2 w-full lg:w-auto">
-                    <button onClick={handleExportReportsCSV} className="flex-1 lg:flex-none justify-center px-4 py-2 border-2 border-gray-100 rounded-lg text-xs font-bold flex items-center gap-1.5 text-gray-600 hover:bg-gray-50 transition-all"><Download size={16} /> Excel</button>
-                    <button onClick={generatePDFInvoice} className="flex-1 lg:flex-none justify-center px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"><FileText size={16} /> PDF Bill</button>
+                    <button onClick={handleExportReportsCSV} className="flex-1 lg:flex-none justify-center px-4 py-2 border-2 border-gray-100 rounded-lg text-xs font-bold flex items-center gap-1.5 text-gray-600 hover:bg-gray-50"><Download size={16} /> Excel</button>
+                    <button onClick={generatePDFInvoice} className="flex-1 lg:flex-none justify-center px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-700 shadow-lg"><FileText size={16} /> PDF Bill</button>
                  </div>
               </div>
             </header>
-
-            <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-6 overflow-hidden">
+            <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 overflow-hidden">
               <div className="grid grid-cols-2 gap-4 md:gap-6 shrink-0">
-                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-blue-500">
-                    <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Orders</p>
-                    <h3 className="text-2xl md:text-3xl font-black text-gray-800">{totalOrders}</h3>
-                </div>
-                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-green-500">
-                    <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Billed</p>
-                    <h3 className="text-2xl md:text-3xl font-black text-green-600">₹{totalSpent}</h3>
-                </div>
+                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-blue-500"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Total Orders</p><h3 className="text-2xl md:text-3xl font-black text-gray-800">{totalOrders}</h3></div>
+                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-green-500"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Total Billed</p><h3 className="text-2xl md:text-3xl font-black text-green-600">₹{totalSpent}</h3></div>
               </div>
-
               <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-y-auto overflow-x-auto relative">
                 <table className="w-full text-left border-collapse min-w-[700px]">
-                  <thead className="bg-gray-50/95 backdrop-blur-sm border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
-                    <tr>
-                      <th className="p-4 pl-6 md:pl-8">Date & Time</th>
-                      <th className="p-4">Billed To</th>
-                      <th className="p-4">Year Scope</th>
-                      <th className="p-4">Voucher Used</th>
-                      <th className="p-4">Items Consumed</th>
-                      <th className="p-4 text-right pr-6 md:pr-8">Order Total</th>
-                    </tr>
+                  <thead className="bg-gray-50/95 backdrop-blur-sm border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase sticky top-0 z-10 shadow-sm">
+                    <tr><th className="p-4 pl-6 md:pl-8">Date & Time</th><th className="p-4">Billed To</th><th className="p-4">Year Scope</th><th className="p-4">Voucher Used</th><th className="p-4">Items Consumed</th><th className="p-4 text-right pr-6 md:pr-8">Order Total</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-sm">
-                    {filteredOrders.length === 0 ? (
-                      <tr><td colSpan="6" className="text-center p-8 text-gray-400">No orders found matching the filters.</td></tr>
-                    ) : (
+                    {filteredOrders.length === 0 ? <tr><td colSpan="6" className="text-center p-8 text-gray-400">No orders found.</td></tr> :
                       filteredOrders.map((order) => {
                         const isGuest = order.voucherCode?.startsWith('G-');
                         const actualGuestName = order.guestName || guests.find(g => g.voucherCode === order.voucherCode)?.guestName || 'Guest';
-                        const hostName = order.facultyId?.fullName || <span className="text-red-400 italic">Deleted User</span>;
-
+                        const hostName = order.facultyId?.fullName || "Deleted User";
                         return (
                           <tr key={order._id} className="hover:bg-gray-50/50 transition-all">
-                            <td className="p-4 pl-6 md:pl-8">
-                                <p className="font-bold text-gray-800 text-sm">{new Date(order.orderDate || order.createdAt).toLocaleDateString('en-GB')}</p>
-                                <p className="text-[11px] text-gray-400 font-medium">{new Date(order.orderDate || order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                            </td>
-                            <td className="p-4">
-                                {isGuest ? (
-                                    <div>
-                                        <p className="font-bold text-gray-800 text-sm">{actualGuestName}</p>
-                                        <p className="text-[11px] text-gray-500 font-medium mt-0.5">Host: {hostName}</p>
-                                    </div>
-                                ) : (
-                                    <p className="font-bold text-gray-800 text-sm">{hostName}</p>
-                                )}
-                            </td>
-                            <td className="p-4">
-                                <span className="text-xs text-gray-500 font-semibold">{order.facultyId?.academicYear || 'N/A'}</span>
-                            </td>
+                            <td className="p-4 pl-6 md:pl-8"><p className="font-bold text-gray-800 text-sm">{new Date(order.orderDate || order.createdAt).toLocaleDateString('en-GB')}</p><p className="text-[11px] text-gray-400 font-medium">{new Date(order.orderDate || order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p></td>
+                            <td className="p-4">{isGuest ? <div><p className="font-bold text-gray-800 text-sm">{actualGuestName}</p><p className="text-[11px] text-gray-500 font-medium mt-0.5">Host: {hostName}</p></div> : <p className="font-bold text-gray-800 text-sm">{hostName}</p>}</td>
+                            <td className="p-4"><span className="text-xs text-gray-500 font-semibold">{order.facultyId?.academicYear || 'N/A'}</span></td>
                             <td className="p-4"><span className="font-mono font-bold text-blue-600 bg-blue-50/50 px-2 py-1 rounded text-[11px]">{order.voucherCode || order.facultyId?.voucherCode || "N/A"}</span></td>
                             <td className="p-4 text-xs text-gray-500">{order.items.map(item => `${item.itemName} (x${item.quantity})`).join(', ')}</td>
                             <td className="p-4 pr-6 md:pr-8 text-right font-black text-green-600">₹{order.totalAmount}</td>
                           </tr>
                         );
                       })
-                    )}
+                    }
                   </tbody>
                 </table>
               </div>
@@ -891,57 +588,43 @@ const CoordinatorDashboard = () => {
         )}
       </div>
 
-      {/* MODALS RENDERED BELOW (Unchanged) */}
       {isModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-800">Add Examiner</h2><button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-1.5 rounded-md"><X size={16}/></button></div>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-800">Add Examiner</h2><button onClick={() => setIsModalOpen(false)} className="text-slate-400 bg-slate-100 p-1.5 rounded-md"><X size={16}/></button></div>
             <form onSubmit={handleAddSingle} className="space-y-4">
-              <input required type="text" placeholder="Full Name" value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-blue-500" />
-              <input required type="email" placeholder="Email Address" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-blue-500" />
-              <input required type="text" placeholder="Mobile Number" value={formData.mobile} onChange={(e) => setFormData({...formData, mobile: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-blue-500" />
-              
-              <div>
-                <input type="text" placeholder="Subject & Type (e.g., DATA STRUCTURES (PR))" value={formData.assignedSubject} onChange={(e) => setFormData({...formData, assignedSubject: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-blue-500" />
-              </div>
-
+              <input required type="text" placeholder="Full Name" value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} className="w-full p-3 border rounded-lg focus:border-blue-500 outline-none" />
+              <input required type="email" placeholder="Email Address" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full p-3 border rounded-lg focus:border-blue-500 outline-none" />
+              <input required type="text" placeholder="Mobile Number" value={formData.mobile} onChange={(e) => setFormData({...formData, mobile: e.target.value})} className="w-full p-3 border rounded-lg focus:border-blue-500 outline-none" />
+              <input type="text" placeholder="Subject & Type" value={formData.assignedSubject} onChange={(e) => setFormData({...formData, assignedSubject: e.target.value})} className="w-full p-3 border rounded-lg focus:border-blue-500 outline-none" />
               <div>
                 <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Year Scope</label>
-                <select required value={formData.academicYear} onChange={(e) => setFormData({...formData, academicYear: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-blue-500 text-sm text-gray-700 bg-white">
-                  <option value="2025-26">2025-26 (Default)</option>
-                  <option value="2nd Yr (Regular)">2nd Yr (Regular)</option>
-                  <option value="2nd Yr (Backlog)">2nd Yr (Backlog)</option>
-                  <option value="3rd Yr (Regular)">3rd Yr (Regular)</option>
-                  <option value="3rd Yr (Backlog)">3rd Yr (Backlog)</option>
-                  <option value="4th Yr (Regular)">4th Yr (Regular)</option>
+                <select required value={formData.academicYear} onChange={(e) => setFormData({...formData, academicYear: e.target.value})} className="w-full p-3 border rounded-lg focus:border-blue-500 outline-none text-sm bg-white">
+                  {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
               </div>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1"><label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Valid From</label><input required type="date" value={formData.validFrom} onChange={(e) => setFormData({...formData, validFrom: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-blue-500 text-sm text-gray-700" /></div>
-                <div className="flex-1"><label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Valid Till</label><input required type="date" value={formData.validTill} onChange={(e) => setFormData({...formData, validTill: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-blue-500 text-sm text-gray-700" /></div>
+              <div className="flex gap-4">
+                <div className="flex-1"><label className="block text-[10px] font-bold text-gray-400 mb-1">Valid From</label><input required type="date" value={formData.validFrom} onChange={(e) => setFormData({...formData, validFrom: e.target.value})} className="w-full p-2 border rounded-lg text-sm" /></div>
+                <div className="flex-1"><label className="block text-[10px] font-bold text-gray-400 mb-1">Valid Till</label><input required type="date" value={formData.validTill} onChange={(e) => setFormData({...formData, validTill: e.target.value})} className="w-full p-2 border rounded-lg text-sm" /></div>
               </div>
-              <button type="submit" className="w-full bg-blue-600 text-white font-bold p-3 rounded-lg mt-4 hover:bg-blue-700 transition-all">Generate Voucher</button>
+              <button type="submit" className="w-full bg-blue-600 text-white font-bold p-3 rounded-lg mt-4 hover:bg-blue-700">Generate Voucher</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* GUEST MODAL (Unchanged) */}
       {isGuestModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-slate-800">Issue Guest Pass</h2>
-                <button onClick={() => setIsGuestModalOpen(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-1.5 rounded-md"><X size={16}/></button>
-            </div>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-800">Issue Guest Pass</h2><button onClick={() => setIsGuestModalOpen(false)} className="text-slate-400 bg-slate-100 p-1.5 rounded-md"><X size={16}/></button></div>
             <form onSubmit={handleAddGuest} className="space-y-4">
-              <input required type="text" placeholder="Guest Name (e.g., Squad Member)" value={guestFormData.guestName} onChange={(e) => setGuestFormData({...guestFormData, guestName: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-purple-500" />
-              <input required type="text" placeholder="Host Faculty Voucher (PICT-XX-...)" value={guestFormData.facultyVoucher} onChange={(e) => setGuestFormData({...guestFormData, facultyVoucher: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-purple-500" />
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1"><label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Valid From</label><input required type="date" value={guestFormData.validFrom} onChange={(e) => setGuestFormData({...guestFormData, validFrom: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-purple-500 text-sm text-gray-700" /></div>
-                <div className="flex-1"><label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Valid Till</label><input required type="date" value={guestFormData.validTill} onChange={(e) => setGuestFormData({...guestFormData, validTill: e.target.value})} className="w-full p-3 border rounded-lg focus:ring-2 outline-none focus:border-purple-500 text-sm text-gray-700" /></div>
+              <input required type="text" placeholder="Guest Name" value={guestFormData.guestName} onChange={(e) => setGuestFormData({...guestFormData, guestName: e.target.value})} className="w-full p-3 border rounded-lg focus:border-purple-500 outline-none" />
+              <input required type="text" placeholder="Host Voucher Code" value={guestFormData.facultyVoucher} onChange={(e) => setGuestFormData({...guestFormData, facultyVoucher: e.target.value})} className="w-full p-3 border rounded-lg focus:border-purple-500 outline-none" />
+              <div className="flex gap-4">
+                <div className="flex-1"><label className="block text-[10px] font-bold text-gray-400 mb-1">Valid From</label><input required type="date" value={guestFormData.validFrom} onChange={(e) => setGuestFormData({...guestFormData, validFrom: e.target.value})} className="w-full p-2 border rounded-lg text-sm" /></div>
+                <div className="flex-1"><label className="block text-[10px] font-bold text-gray-400 mb-1">Valid Till</label><input required type="date" value={guestFormData.validTill} onChange={(e) => setGuestFormData({...guestFormData, validTill: e.target.value})} className="w-full p-2 border rounded-lg text-sm" /></div>
               </div>
-              <button type="submit" className="w-full bg-purple-600 text-white font-bold p-3 rounded-lg mt-4 hover:bg-purple-700 transition-all shadow-lg shadow-purple-200">Issue Guest Code</button>
+              <button type="submit" className="w-full bg-purple-600 text-white font-bold p-3 rounded-lg mt-4 hover:bg-purple-700">Issue Guest Code</button>
             </form>
           </div>
         </div>

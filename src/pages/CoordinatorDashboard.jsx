@@ -23,8 +23,10 @@ const CoordinatorDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
-  const [yearScope, setYearScope] = useState('');
   
+  // States for Filtering
+  const [yearScope, setYearScope] = useState(''); // Used in Faculty Tab
+  const [reportYearFilter, setReportYearFilter] = useState(''); // NEW: Used in Reports Tab
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
@@ -83,17 +85,26 @@ const CoordinatorDashboard = () => {
   }).length;
   const pendingExpired = totalExaminers - activeVouchers;
 
+  // 🚀 UPDATED: Filter logic to include reportYearFilter
   const filteredOrders = orders.filter(order => {
-    if (!startDate && !endDate) return true;
-    const orderDate = new Date(order.orderDate || order.createdAt);
-    orderDate.setHours(0, 0, 0, 0);
+    // 1. Date Filter
+    if (startDate || endDate) {
+        const orderDate = new Date(order.orderDate || order.createdAt);
+        orderDate.setHours(0, 0, 0, 0);
+        const start = startDate ? new Date(startDate) : new Date('2000-01-01');
+        const end = endDate ? new Date(endDate) : new Date('2100-01-01');
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        if (orderDate < start || orderDate > end) return false;
+    }
 
-    const start = startDate ? new Date(startDate) : new Date('2000-01-01');
-    const end = endDate ? new Date(endDate) : new Date('2100-01-01');
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    // 2. Year Filter (Check faculty year for both faculty and guest orders)
+    if (reportYearFilter !== '') {
+        const facultyYear = order.facultyId?.academicYear;
+        if (facultyYear !== reportYearFilter) return false;
+    }
 
-    return orderDate >= start && orderDate <= end;
+    return true;
   });
 
   const totalSpent = filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
@@ -123,6 +134,7 @@ const CoordinatorDashboard = () => {
         "Time": new Date(o.orderDate || o.createdAt).toLocaleTimeString(),
         "Billed To": isGuest ? `${actualGuestName} (Guest)` : hostName,
         "Host Faculty": isGuest ? hostName : "N/A",
+        "Year Scope": o.facultyId?.academicYear || "N/A",
         "Voucher Code": o.voucherCode || "N/A",
         "Items Ordered": o.items.map(i => `${i.itemName} (x${i.quantity})`).join(', '),
         "Amount (₹)": o.totalAmount
@@ -132,7 +144,7 @@ const CoordinatorDashboard = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
-    XLSX.writeFile(workbook, `${deptCode}_Canteen_Usage_Report.xlsx`);
+    XLSX.writeFile(workbook, `${deptCode}_Usage_${reportYearFilter || 'All_Years'}.xlsx`);
     toast.success("Orders CSV Downloaded!"); 
   };
 
@@ -168,7 +180,10 @@ const CoordinatorDashboard = () => {
       doc.text(refNo, 14, 50);
       doc.text(dateRangeText, 140, 50);
       doc.setFont("helvetica", "bold");
-      doc.text(`Department: ${deptCode} DEPARTMENT`, 14, 58);
+      
+      // 🚀 UPDATED: Department header includes year filter if selected
+      const yearText = reportYearFilter ? `(${reportYearFilter.toUpperCase()})` : "ALL YEARS";
+      doc.text(`Department: ${deptCode} DEPARTMENT ${yearText}`, 14, 58);
 
       const facultyOrders = filteredOrders.filter(o => !o.voucherCode?.startsWith('G-'));
       const guestOrders = filteredOrders.filter(o => o.voucherCode?.startsWith('G-'));
@@ -180,7 +195,7 @@ const CoordinatorDashboard = () => {
           const orderDateIso = rawDateObj.toISOString().split('T')[0];
           const baseName = order.facultyId?.fullName || 'Deleted/Unknown User';
           
-          const matchedFaculty = faculty.find(f => f.voucherCode === order.voucherCode || (order.facultyId && f._id === order.facultyId._id));
+          const matchedFaculty = faculty.find(f => f.voucherCode === order.voucherCode || (order.facultyId && f._id === (order.facultyId._id || order.facultyId)));
           const yearScope = matchedFaculty?.academicYear || 'N/A';
           
           let activeSubjects = 'No Subjects';
@@ -227,7 +242,7 @@ const CoordinatorDashboard = () => {
           const actualGuestName = order.guestName || guests.find(g => g.voucherCode === order.voucherCode)?.guestName || 'Guest';
           const baseName = `${actualGuestName} \n(Host: ${order.facultyId?.fullName || 'Unknown'})`;
           
-          const hostFaculty = faculty.find(f => order.facultyId && f._id === order.facultyId._id);
+          const hostFaculty = faculty.find(f => order.facultyId && f._id === (order.facultyId._id || order.facultyId));
           const yearScope = hostFaculty?.academicYear || 'N/A';
           
           let activeSubjects = 'No Subjects';
@@ -343,19 +358,14 @@ const CoordinatorDashboard = () => {
 
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
-      
       doc.line(20, signatureY, 60, signatureY);
       doc.text("MESS MANAGER", 25, signatureY + 6);
-      
       doc.line(85, signatureY, 135, signatureY);
       doc.text("PRACTICAL COORDINATOR", 87, signatureY + 6);
-      
       doc.line(160, signatureY, 200, signatureY);
       doc.text("HEAD OF DEPARTMENT", 162, signatureY + 6);
-      
       doc.line(45, signatureY + 25, 85, signatureY + 25);
       doc.text("CEO", 60, signatureY + 31);
-      
       doc.line(135, signatureY + 25, 175, signatureY + 25);
       doc.text("PRINCIPAL", 148, signatureY + 31);
 
@@ -367,7 +377,7 @@ const CoordinatorDashboard = () => {
       });
       doc.text(`SYSTEM GENERATED REPORT | PICT CANTEEN & MESS SECTION | DOWNLOADED: ${downloadTime.toUpperCase()}`, 48, pageHeight - 5);
 
-      doc.save(`${deptCode}_Billing_Report.pdf`);
+      doc.save(`${deptCode}_Billing_Report_${reportYearFilter || 'All'}.pdf`);
       toast.success("PDF Report Downloaded!"); 
     };
 
@@ -396,7 +406,7 @@ const CoordinatorDashboard = () => {
      }
   };
 
-  // 🚀 WhatsApp Feature Logic
+  // WhatsApp Feature Logic
   const handleWhatsAppShare = (member) => {
     const rawMobile = String(member.mobile).trim();
     const phoneNumber = rawMobile.startsWith('91') ? rawMobile : `91${rawMobile}`;
@@ -406,9 +416,8 @@ const CoordinatorDashboard = () => {
                     `You have been assigned as an examiner for the *${deptCode}* Department.%0A%0A` +
                     `*VOUCHER DETAILS:*%0A` +
                     `• *Access Code:* ${member.voucherCode}%0A` +
-                    `• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}%0A` +
                     `• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}%0A%0A` +
-                    `_Please use this code for accessing the canteen services._`;
+                    `_Please present this code at the canteen counter._`;
 
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
     window.open(whatsappUrl, '_blank');
@@ -704,7 +713,7 @@ const CoordinatorDashboard = () => {
                         <td className="p-4 text-center text-[11px] text-gray-500 font-semibold align-top whitespace-nowrap">{new Date(f.validFrom).toLocaleDateString('en-GB')} — {new Date(f.validTill).toLocaleDateString('en-GB')}</td>
                         <td className="p-4 pr-6 md:pr-8 text-center align-top">
                           <div className="flex justify-center gap-2">
-                             {/* 🚀 Updated Actions Column with WhatsApp */}
+                             {/* 🚀 Actions Column with WhatsApp */}
                             <button onClick={() => handleWhatsAppShare(f)} className="p-1.5 border border-green-200 rounded text-green-500 hover:text-green-600 hover:border-green-300 transition-all bg-white shadow-sm" title="Share via WhatsApp"><MessageSquare size={16} /></button>
                             <button onClick={() => handleSendEmail(f)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-blue-600 hover:border-blue-300 transition-all bg-white shadow-sm" title="Send Email"><Mail size={16} /></button>
                             <button onClick={() => handleDelete(f._id)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-red-500 hover:border-red-300 transition-all bg-white shadow-sm" title="Revoke Voucher"><Trash2 size={16} /></button>
@@ -779,7 +788,25 @@ const CoordinatorDashboard = () => {
               
               <div className="flex flex-col lg:flex-row gap-4 w-full xl:w-auto items-start lg:items-center">
                  
+                 {/* 🚀 NEW: Reports Filters (Date + Year Scope) */}
                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 lg:pr-4 lg:border-r border-gray-200 w-full lg:w-auto">
+                    
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase w-10 sm:w-auto">Year:</span>
+                        <select 
+                            className="text-xs p-2 border rounded-lg text-gray-600 outline-none focus:border-blue-500 font-bold bg-white"
+                            value={reportYearFilter}
+                            onChange={(e) => setReportYearFilter(e.target.value)}
+                        >
+                            <option value="">All Years</option>
+                            <option value="2nd Yr (Regular)">2nd Yr (Regular)</option>
+                            <option value="2nd Yr (Backlog)">2nd Yr (Backlog)</option>
+                            <option value="3rd Yr (Regular)">3rd Yr (Regular)</option>
+                            <option value="3rd Yr (Backlog)">3rd Yr (Backlog)</option>
+                            <option value="4th Yr (Regular)">4th Yr (Regular)</option>
+                        </select>
+                    </div>
+
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                         <span className="text-[10px] font-bold text-gray-400 uppercase w-10 sm:w-auto">From:</span>
                         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="flex-1 sm:flex-none text-xs p-2 border rounded-lg text-gray-600 outline-none focus:border-blue-500" />
@@ -799,8 +826,14 @@ const CoordinatorDashboard = () => {
 
             <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-6 overflow-hidden">
               <div className="grid grid-cols-2 gap-4 md:gap-6 shrink-0">
-                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-blue-500"><p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Orders</p><h3 className="text-2xl md:text-3xl font-black text-gray-800">{totalOrders}</h3></div>
-                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-green-500"><p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Billed</p><h3 className="text-2xl md:text-3xl font-black text-green-600">₹{totalSpent}</h3></div>
+                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-blue-500">
+                    <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Orders</p>
+                    <h3 className="text-2xl md:text-3xl font-black text-gray-800">{totalOrders}</h3>
+                </div>
+                <div className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm border-l-4 border-l-green-500">
+                    <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Billed</p>
+                    <h3 className="text-2xl md:text-3xl font-black text-green-600">₹{totalSpent}</h3>
+                </div>
               </div>
 
               <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-y-auto overflow-x-auto relative">
@@ -809,6 +842,7 @@ const CoordinatorDashboard = () => {
                     <tr>
                       <th className="p-4 pl-6 md:pl-8">Date & Time</th>
                       <th className="p-4">Billed To</th>
+                      <th className="p-4">Year Scope</th>
                       <th className="p-4">Voucher Used</th>
                       <th className="p-4">Items Consumed</th>
                       <th className="p-4 text-right pr-6 md:pr-8">Order Total</th>
@@ -816,7 +850,7 @@ const CoordinatorDashboard = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-sm">
                     {filteredOrders.length === 0 ? (
-                      <tr><td colSpan="5" className="text-center p-8 text-gray-400">No orders found in this date range.</td></tr>
+                      <tr><td colSpan="6" className="text-center p-8 text-gray-400">No orders found matching the filters.</td></tr>
                     ) : (
                       filteredOrders.map((order) => {
                         const isGuest = order.voucherCode?.startsWith('G-');
@@ -839,6 +873,9 @@ const CoordinatorDashboard = () => {
                                     <p className="font-bold text-gray-800 text-sm">{hostName}</p>
                                 )}
                             </td>
+                            <td className="p-4">
+                                <span className="text-xs text-gray-500 font-semibold">{order.facultyId?.academicYear || 'N/A'}</span>
+                            </td>
                             <td className="p-4"><span className="font-mono font-bold text-blue-600 bg-blue-50/50 px-2 py-1 rounded text-[11px]">{order.voucherCode || order.facultyId?.voucherCode || "N/A"}</span></td>
                             <td className="p-4 text-xs text-gray-500">{order.items.map(item => `${item.itemName} (x${item.quantity})`).join(', ')}</td>
                             <td className="p-4 pr-6 md:pr-8 text-right font-black text-green-600">₹{order.totalAmount}</td>
@@ -854,7 +891,7 @@ const CoordinatorDashboard = () => {
         )}
       </div>
 
-      {/* FACULTY MODAL */}
+      {/* MODALS RENDERED BELOW (Unchanged) */}
       {isModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
@@ -889,7 +926,7 @@ const CoordinatorDashboard = () => {
         </div>
       )}
 
-      {/* GUEST MODAL */}
+      {/* GUEST MODAL (Unchanged) */}
       {isGuestModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">

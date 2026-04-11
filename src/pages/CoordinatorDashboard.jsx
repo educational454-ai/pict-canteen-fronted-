@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket } from 'lucide-react';
+import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket, MessageSquare } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -227,7 +227,6 @@ const CoordinatorDashboard = () => {
           const actualGuestName = order.guestName || guests.find(g => g.voucherCode === order.voucherCode)?.guestName || 'Guest';
           const baseName = `${actualGuestName} \n(Host: ${order.facultyId?.fullName || 'Unknown'})`;
           
-          // 🚀 THE FIX: Dynamically find the HOST'S subject for this specific day!
           const hostFaculty = faculty.find(f => order.facultyId && f._id === order.facultyId._id);
           const yearScope = hostFaculty?.academicYear || 'N/A';
           
@@ -256,7 +255,7 @@ const CoordinatorDashboard = () => {
              guestTotals[groupingKey] = { 
                  displayName: baseName, 
                  date: rawDate, 
-                 yearAndSubs: `${yearScope}\n${activeSubjects}`, // 🚀 Inherits Host's data!
+                 yearAndSubs: `${yearScope}\n${activeSubjects}`,
                  items: [], 
                  total: 0 
              };
@@ -305,7 +304,7 @@ const CoordinatorDashboard = () => {
           index + 1, 
           data.date, 
           data.displayName, 
-          data.yearAndSubs, // 🚀 Prints the Host's inherited data
+          data.yearAndSubs,
           data.items.join(' | '), 
           `Rs. ${data.total}` 
       ]);
@@ -395,6 +394,23 @@ const CoordinatorDashboard = () => {
          } 
          catch (err) { toast.error("Failed to reset system."); } 
      }
+  };
+
+  // 🚀 WhatsApp Feature Logic
+  const handleWhatsAppShare = (member) => {
+    const rawMobile = String(member.mobile).trim();
+    const phoneNumber = rawMobile.startsWith('91') ? rawMobile : `91${rawMobile}`;
+    
+    const message = `*PICT EXAM PORTAL - CANTEEN VOUCHER*%0A%0A` +
+                    `Dear Prof. *${member.fullName}*,%0A%0A` +
+                    `You have been assigned as an examiner for the *${deptCode}* Department.%0A%0A` +
+                    `*VOUCHER DETAILS:*%0A` +
+                    `• *Access Code:* ${member.voucherCode}%0A` +
+                    `• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}%0A%0A` +
+                    `_Please present this code at the canteen counter._`;
+
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   const handleSendEmail = (member) => {
@@ -686,9 +702,11 @@ const CoordinatorDashboard = () => {
                         <td className="p-4 text-center align-top"><span className="font-mono font-bold text-blue-600 bg-blue-50/50 px-3 py-1 rounded-md text-[11px] tracking-wider whitespace-nowrap">{f.voucherCode}</span></td>
                         <td className="p-4 text-center text-[11px] text-gray-500 font-semibold align-top whitespace-nowrap">{new Date(f.validFrom).toLocaleDateString('en-GB')} — {new Date(f.validTill).toLocaleDateString('en-GB')}</td>
                         <td className="p-4 pr-6 md:pr-8 text-center align-top">
-                          <div className="flex justify-center gap-3">
-                            <button onClick={() => handleSendEmail(f)} className="p-1.5 border border-gray-200 rounded text-gray-300 hover:text-blue-600 hover:border-blue-300 transition-all bg-white shadow-sm" title="Send Email"><Mail size={16} /></button>
-                            <button onClick={() => handleDelete(f._id)} className="p-1.5 border border-gray-200 rounded text-gray-300 hover:text-red-500 hover:border-red-300 transition-all bg-white shadow-sm" title="Revoke Voucher"><Trash2 size={16} /></button>
+                          <div className="flex justify-center gap-2">
+                             {/* 🚀 Updated Actions Column with WhatsApp */}
+                            <button onClick={() => handleWhatsAppShare(f)} className="p-1.5 border border-green-200 rounded text-green-500 hover:text-green-600 hover:border-green-300 transition-all bg-white shadow-sm" title="Share via WhatsApp"><MessageSquare size={16} /></button>
+                            <button onClick={() => handleSendEmail(f)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-blue-600 hover:border-blue-300 transition-all bg-white shadow-sm" title="Send Email"><Mail size={16} /></button>
+                            <button onClick={() => handleDelete(f._id)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-red-500 hover:border-red-300 transition-all bg-white shadow-sm" title="Revoke Voucher"><Trash2 size={16} /></button>
                           </div>
                         </td>
                       </tr>

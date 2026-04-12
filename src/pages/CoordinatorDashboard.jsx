@@ -563,12 +563,6 @@ const CoordinatorDashboard = () => {
                   <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Total Billed</p>
                   <h3 className="text-2xl font-black text-green-600">₹{totalSpent}</h3>
                 </div>
-                {/* 🚀 NEW Stats Card: Most Active */}
-                <div className="bg-white p-5 rounded-2xl border shadow-sm">
-                  <div className="flex items-center gap-2 text-blue-600 mb-1"><UserCheck size={14} /><p className="text-[10px] font-bold uppercase">Top User</p></div>
-                  <h3 className="text-sm font-black text-slate-700 truncate">{topExaminer?.name || 'N/A'}</h3>
-                  <p className="text-[10px] text-slate-400 font-bold">{topExaminer?.count || 0} Orders total</p>
-                </div>
                 {/* 🚀 NEW Stats Card: Highest Year Expense */}
                 <div className="bg-white p-5 rounded-2xl border shadow-sm overflow-hidden relative">
                    <div className="flex items-center gap-2 text-emerald-600 mb-1"><TrendingUp size={14} /><p className="text-[10px] font-bold uppercase">Budget Peak</p></div>

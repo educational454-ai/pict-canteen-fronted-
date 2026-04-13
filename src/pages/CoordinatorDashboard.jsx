@@ -139,7 +139,7 @@ const CoordinatorDashboard = () => {
     toast.success("Orders CSV Downloaded!"); 
   };
 
-  const generatePDFInvoice = () => {
+const generatePDFInvoice = () => {
     const doc = new jsPDF();
     const img = new Image();
     img.src = '/image1.jpeg'; 
@@ -233,37 +233,50 @@ const CoordinatorDashboard = () => {
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.text("SECTION A: FACULTY CONSUMPTION", 14, currentY);
+      
       const facultyTableData = Object.values(facultyTotals).map((data, index) => [ index + 1, data.date, data.displayName, data.yearAndSubs, data.items.join(' | '), `Rs. ${data.total}` ]);
       const facultySum = Object.values(facultyTotals).reduce((sum, val) => sum + val.total, 0);
+
+      // 🚀 UPDATED SECTION A: Added bold body styles
       autoTable(doc, {
         startY: currentY + 3,
         head: [['Sr', 'Date', 'Faculty Name', 'Year & Specific Subject', 'Items Consumed', 'Total (Rs)']], 
         body: facultyTableData.length ? facultyTableData : [['-', '-', 'No Faculty Orders', '-', '-', '-']],
-        theme: 'grid', headStyles: { fillColor: [50, 50, 50] }, bodyStyles: { fillColor: false }, 
-        alternateRowStyles: { fillColor: false }, styles: { fontSize: 8, cellPadding: 3 },
+        theme: 'grid',
+        headStyles: { fillColor: [50, 50, 50], fontStyle: 'bold', fontSize: 9 }, 
+        bodyStyles: { fontStyle: 'bold', fontSize: 8.5, textColor: [20, 20, 20], cellPadding: 4 }, 
         columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
       });
+
       currentY = doc.lastAutoTable.finalY;
+      doc.setFont("helvetica", "bold");
       doc.text(`Sub-Total (Faculty): Rs. ${facultySum}/-`, 140, currentY + 8);
+      
       currentY += 18;
       doc.text("SECTION B: GUEST/EXTERNAL CONSUMPTION", 14, currentY);
       const guestTableData = Object.values(guestTotals).map((data, index) => [ index + 1, data.date, data.displayName, data.yearAndSubs, data.items.join(' | '), `Rs. ${data.total}` ]);
       const guestSum = Object.values(guestTotals).reduce((sum, val) => sum + val.total, 0);
+
+      // 🚀 UPDATED SECTION B: Added bold body styles
       autoTable(doc, {
         startY: currentY + 3,
         head: [['Sr', 'Date', 'Guest Details', 'Year & Specific Subject', 'Items Consumed', 'Total (Rs)']], 
         body: guestTableData.length ? guestTableData : [['-', '-', 'No Guest Orders', '-', '-', '-']],
-        theme: 'grid', headStyles: { fillColor: [50, 50, 50] }, bodyStyles: { fillColor: false }, 
-        alternateRowStyles: { fillColor: false }, styles: { fontSize: 8, cellPadding: 3 },
+        theme: 'grid',
+        headStyles: { fillColor: [50, 50, 50], fontStyle: 'bold', fontSize: 9 }, 
+        bodyStyles: { fontStyle: 'bold', fontSize: 8.5, textColor: [20, 20, 20], cellPadding: 4 }, 
         columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
       });
+
       currentY = doc.lastAutoTable.finalY;
+      doc.setFont("helvetica", "bold");
       doc.text(`Sub-Total (Guest): Rs. ${guestSum}/-`, 140, currentY + 8);
       const grandTotal = facultySum + guestSum;
       doc.rect(130, currentY + 15, 66, 10);
       doc.setFontSize(12);
       doc.text(`GRAND TOTAL`, 135, currentY + 22);
       doc.text(`Rs. ${grandTotal}`, 175, currentY + 22);
+
       const pageHeight = doc.internal.pageSize.getHeight();
       let signatureY = currentY + 50; 
       if (signatureY + 30 > pageHeight - 20) { doc.addPage(); signatureY = 40; }

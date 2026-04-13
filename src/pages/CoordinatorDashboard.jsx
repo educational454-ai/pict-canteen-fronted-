@@ -336,7 +336,7 @@ const generatePDFInvoice = () => {
                     `• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}%0A` +
                     `• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}%0A%0A` +
                     `_Please enter this code at the canteen portal._`
-                    `Portal Link: https://pict-canteen-fronted.vercel.app/` +;
+                    `Portal Link: https://pict-canteen-fronted.vercel.app/`;
     window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
   };
 

@@ -237,35 +237,50 @@ const generatePDFInvoice = () => {
       const facultyTableData = Object.values(facultyTotals).map((data, index) => [ index + 1, data.date, data.displayName, data.yearAndSubs, data.items.join(' | '), `Rs. ${data.total}` ]);
       const facultySum = Object.values(facultyTotals).reduce((sum, val) => sum + val.total, 0);
 
-      // 🚀 UPDATED SECTION A: Added bold body styles
+// SECTION A: FACULTY TABLE
       autoTable(doc, {
         startY: currentY + 3,
         head: [['Sr', 'Date', 'Faculty Name', 'Year & Specific Subject', 'Items Consumed', 'Total (Rs)']], 
         body: facultyTableData.length ? facultyTableData : [['-', '-', 'No Faculty Orders', '-', '-', '-']],
         theme: 'grid',
-        headStyles: { fillColor: [50, 50, 50], fontStyle: 'bold', fontSize: 9 }, 
-        bodyStyles: { fontStyle: 'bold', fontSize: 8.5, textColor: [20, 20, 20], cellPadding: 4 }, 
-        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
+        // 🚀 Styling Header
+        headStyles: { fillColor: [40, 40, 40], fontSize: 10, fontStyle: 'bold', halign: 'center' }, 
+        // 🚀 Styling Body: Bold + Increased Size
+        bodyStyles: { fontStyle: 'bold', fontSize: 9.5, textColor: [0, 0, 0], cellPadding: 4 }, 
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        styles: { font: "helvetica", lineWidth: 0.2 },
+        columnStyles: { 
+            0: { halign: 'center', cellWidth: 10 }, 
+            1: { cellWidth: 25 }, 
+            5: { halign: 'right', fontStyle: 'bold', cellWidth: 22 } 
+        }
       });
 
       currentY = doc.lastAutoTable.finalY;
       doc.setFont("helvetica", "bold");
-      doc.text(`Sub-Total (Faculty): Rs. ${facultySum}/-`, 140, currentY + 8);
-      
-      currentY += 18;
-      doc.text("SECTION B: GUEST/EXTERNAL CONSUMPTION", 14, currentY);
-      const guestTableData = Object.values(guestTotals).map((data, index) => [ index + 1, data.date, data.displayName, data.yearAndSubs, data.items.join(' | '), `Rs. ${data.total}` ]);
-      const guestSum = Object.values(guestTotals).reduce((sum, val) => sum + val.total, 0);
+      doc.setFontSize(12); // Slightly bigger sub-total
+      doc.text(`Sub-Total (Faculty): Rs. ${facultySum}/-`, 140, currentY + 10);
 
-      // 🚀 UPDATED SECTION B: Added bold body styles
+      currentY += 20;
+      doc.setFontSize(11);
+      doc.text("SECTION B: GUEST/EXTERNAL CONSUMPTION", 14, currentY);
+      
+      // SECTION B: GUEST TABLE
       autoTable(doc, {
         startY: currentY + 3,
         head: [['Sr', 'Date', 'Guest Details', 'Year & Specific Subject', 'Items Consumed', 'Total (Rs)']], 
         body: guestTableData.length ? guestTableData : [['-', '-', 'No Guest Orders', '-', '-', '-']],
         theme: 'grid',
-        headStyles: { fillColor: [50, 50, 50], fontStyle: 'bold', fontSize: 9 }, 
-        bodyStyles: { fontStyle: 'bold', fontSize: 8.5, textColor: [20, 20, 20], cellPadding: 4 }, 
-        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 20 }, 5: { halign: 'right', cellWidth: 20 } }
+        headStyles: { fillColor: [40, 40, 40], fontSize: 10, fontStyle: 'bold', halign: 'center' },
+        // 🚀 Styling Body: Bold + Increased Size
+        bodyStyles: { fontStyle: 'bold', fontSize: 9.5, textColor: [0, 0, 0], cellPadding: 4 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        styles: { font: "helvetica", lineWidth: 0.2 },
+        columnStyles: { 
+            0: { halign: 'center', cellWidth: 10 }, 
+            1: { cellWidth: 25 }, 
+            5: { halign: 'right', fontStyle: 'bold', cellWidth: 22 } 
+        }
       });
 
       currentY = doc.lastAutoTable.finalY;

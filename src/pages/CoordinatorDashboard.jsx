@@ -300,6 +300,7 @@ const CoordinatorDashboard = () => {
   const handleWhatsAppShare = (member) => {
     const rawMobile = String(member.mobile).trim();
     const phoneNumber = rawMobile.startsWith('91') ? rawMobile : `91${rawMobile}`;
+    
     const message = `*PICT EXAM PORTAL - CANTEEN VOUCHER*%0A%0A` +
                     `Dear Prof. *${member.fullName}*,%0A%0A` +
                     `You have been assigned as an examiner for the *${deptCode}* Department.%0A%0A` +
@@ -307,8 +308,12 @@ const CoordinatorDashboard = () => {
                     `• *Access Code:* ${member.voucherCode}%0A` +
                     `• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}%0A` +
                     `• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}%0A%0A` +
-                    `_Please enter this code at the canteen portal._`;
-    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+                    `*PORTAL LINK:*%0A` +
+                    `https://pict-canteen-fronted.vercel.app/%0A%0A` +
+                    `_Please enter your access code at the portal link above to place orders._`;
+
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   const handleSendEmail = (member) => {

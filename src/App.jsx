@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 // 🚀 1. IMPORT THE TOASTER
-import { Toaster } from 'react-hot-toast'; 
+import { Toaster } from 'react-hot-toast';
+import { Analytics } from '@vercel/analytics/react'; 
 
 import LoginPage from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
@@ -35,6 +36,7 @@ function App() {
       </div>
 
       <Footer />
+      <Analytics />
     </div>
   );
 }

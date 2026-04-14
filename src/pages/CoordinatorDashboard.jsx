@@ -537,64 +537,99 @@ const CoordinatorDashboard = () => {
           </main>
         )}
 
-{activeTab === 'reports' && (
-          <main className="flex-1 flex flex-col p-4 md:p-8 gap-6 overflow-y-auto">
-            <header className="flex justify-between items-center shrink-0">
-               <h1 className="text-2xl font-bold text-gray-800">Usage Logs</h1>
-               <div className="flex gap-4 items-center">
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isRefreshing ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
-                    <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
-                    {isRefreshing ? 'Syncing...' : 'Live'}
-                  </div>
-                  <button onClick={generatePDFInvoice} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg hover:bg-blue-700 transition-all"><FileText size={16} /> PDF Bill</button>
-               </div>
-            </header>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 shrink-0">
-              <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-blue-500"><p className="text-[10px] font-bold text-gray-400 uppercase">Total Orders</p><h3 className="text-2xl font-black">{totalOrders}</h3></div>
-              <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-green-500"><p className="text-[10px] font-bold text-gray-400 uppercase">Total Spent</p><h3 className="text-2xl font-black text-green-600">₹{totalSpent}</h3></div>
-              <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-emerald-500"><p className="text-[10px] font-bold text-gray-400 uppercase">Budget Peak</p><h3 className="text-lg font-black text-slate-700">{yearWiseStats[0]?.year || 'N/A'}</h3></div>
-            </div>
-            <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-auto relative">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase border-b sticky top-0 z-10">
-                  <tr>
-                    <th className="p-4 pl-8">Date</th>
-                    <th className="p-4">Billed To</th>
-                    {/* 🚀 New Subject Column */}
-                    <th className="p-4">Assigned Subject</th>
-                    <th className="p-4 text-center">Year</th>
-                    <th className="p-4 text-center">Voucher</th>
-                    <th className="p-4 text-right pr-8">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y text-sm">
-                  {filteredOrders.map((o) => {
-                    const isGuest = o.voucherCode?.startsWith('G-');
-                    const orderDateIso = new Date(o.orderDate || o.createdAt).toISOString().split('T')[0];
-                    let displaySubject = subjectNameByOrder[o._id] || 'N/A';
-                    if (o.facultyId?.assignedSubjects) {
-                        const matchingSub = o.facultyId.assignedSubjects.find(sub => {
-                            const parts = sub.split('|');
-                            return parts.length === 3 && orderDateIso >= parts[0] && orderDateIso <= parts[1];
-                        });
-                        if(matchingSub) displaySubject = matchingSub.split('|')[2];
-                    }
-                    return (
-                      <tr key={o._id} className="hover:bg-gray-50/50">
-                        <td className="p-4 pl-8 font-bold text-gray-700">{new Date(o.orderDate || o.createdAt).toLocaleDateString('en-GB')}</td>
-                        <td className="p-4"><p className="font-bold text-gray-900">{isGuest ? o.guestName : o.facultyId?.fullName}</p>{isGuest && <p className="text-[10px] text-gray-400">Host: {o.facultyId?.fullName}</p>}</td>
-                        <td className="p-4"><span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold border border-blue-100 block w-max max-w-[180px] truncate">{displaySubject}</span></td>
-                        <td className="p-4 text-center font-semibold text-gray-500">{o.facultyId?.academicYear || 'N/A'}</td>
-                        <td className="p-4 text-center font-mono text-[11px] text-gray-400">{o.voucherCode}</td>
-                        <td className="p-4 text-right pr-8 font-black text-emerald-600">₹{o.totalAmount}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </main>
-        )}
+      {activeTab === 'reports' && (
+  <main className="flex-1 flex flex-col p-4 md:p-8 gap-6 overflow-y-auto">
+    <header className="flex justify-between items-center shrink-0">
+      <h1 className="text-2xl font-bold text-gray-800">Usage Logs</h1>
+      <div className="flex gap-4 items-center">
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isRefreshing ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
+          <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
+          {isRefreshing ? 'Syncing...' : 'Live'}
+        </div>
+        <button onClick={generatePDFInvoice} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg hover:bg-blue-700 transition-all">
+          <FileText size={16} /> PDF Bill
+        </button>
+      </div>
+    </header>
+
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 shrink-0">
+      <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-blue-500">
+        <p className="text-[10px] font-bold text-gray-400 uppercase">Total Orders</p>
+        <h3 className="text-2xl font-black">{totalOrders}</h3>
+      </div>
+      <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-green-500">
+        <p className="text-[10px] font-bold text-gray-400 uppercase">Total Spent</p>
+        <h3 className="text-2xl font-black text-green-600">₹{totalSpent}</h3>
+      </div>
+      <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-emerald-500">
+        <p className="text-[10px] font-bold text-gray-400 uppercase">Budget Peak</p>
+        <h3 className="text-lg font-black text-slate-700">{yearWiseStats[0]?.year || 'N/A'}</h3>
+      </div>
+    </div>
+
+    <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-auto relative">
+      <table className="w-full text-left border-collapse">
+        <thead className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase border-b sticky top-0 z-10">
+          <tr>
+            <th className="p-4 pl-8">Date</th>
+            <th className="p-4">Billed To</th>
+            <th className="p-4">Assigned Subject</th>
+            <th className="p-4 text-center">Year</th>
+            <th className="p-4 text-center">Voucher</th>
+            <th className="p-4 text-right pr-8">Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y text-sm">
+          {filteredOrders.length === 0 ? (
+            <tr>
+              <td colSpan="6" className="text-center p-12 text-gray-400 font-bold">
+                No logs found for current filters.
+              </td>
+            </tr>
+          ) : (
+            filteredOrders.map((o) => {
+              const isGuest = o.voucherCode?.startsWith('G-');
+              
+              // 🚀 IMPROVED LOGIC: Extract Subject Name based on the order date
+              const orderDateIso = new Date(o.orderDate || o.createdAt).toISOString().split('T')[0];
+              let displaySubject = "Duty/Other";
+              
+              // Search through assignedSubjects array
+              if (o.facultyId?.assignedSubjects && Array.isArray(o.facultyId.assignedSubjects)) {
+                const matchingSub = o.facultyId.assignedSubjects.find(sub => {
+                  const parts = sub.split('|');
+                  // Check if the order date falls within the subject's validity range
+                  return parts.length === 3 && orderDateIso >= parts[0] && orderDateIso <= parts[1];
+                });
+                if (matchingSub) displaySubject = matchingSub.split('|')[2];
+              }
+
+              return (
+                <tr key={o._id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="p-4 pl-8 font-bold text-gray-700">
+                    {new Date(o.orderDate || o.createdAt).toLocaleDateString('en-GB')}
+                  </td>
+                  <td className="p-4">
+                    <p className="font-bold text-gray-900">{isGuest ? o.guestName : o.facultyId?.fullName}</p>
+                    {isGuest && <p className="text-[10px] text-gray-400 font-medium">Host: {o.facultyId?.fullName}</p>}
+                  </td>
+                  <td className="p-4">
+                    <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold border border-blue-100 block w-max max-w-[200px] truncate" title={displaySubject}>
+                      {displaySubject}
+                    </span>
+                  </td>
+                  <td className="p-4 text-center font-semibold text-gray-500">{o.facultyId?.academicYear || 'N/A'}</td>
+                  <td className="p-4 text-center font-mono text-[11px] text-gray-400">{o.voucherCode}</td>
+                  <td className="p-4 text-right pr-8 font-black text-emerald-600">₹{o.totalAmount}</td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+  </main>
+)}
       </div>
 
       {/* MODALS RENDERED BELOW */}

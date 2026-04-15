@@ -102,7 +102,6 @@ const CanteenManagerDashboard = () => {
   };
 
   const filteredOrders = orders.filter(order => {
-      // 🚀 NEW: Filter logic by search name
       const orderName = (order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName) || "";
       if (!orderName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
 
@@ -140,7 +139,6 @@ const CanteenManagerDashboard = () => {
       ? (feedbackOrders.reduce((sum, o) => sum + o.rating, 0) / feedbackOrders.length).toFixed(1) 
       : 0;
 
-  // 🚀 NEW: ACTION HANDLERS
   const cancelOrder = async (orderId) => {
     if (window.confirm("Are you sure you want to permanently delete/cancel this order? It will be removed from reports.")) {
         try {
@@ -155,7 +153,7 @@ const CanteenManagerDashboard = () => {
     try {
         await API.put(`/orders/${order._id}/status`, { status: 'Completed' });
         toast.success("Order Completed!");
-        printReceipt(order); // Auto-open print
+        printReceipt(order);
         fetchOrders();
     } catch (err) { toast.error("Failed to update status."); }
   };
@@ -211,7 +209,6 @@ const CanteenManagerDashboard = () => {
       img.src = '/image1.jpeg'; 
       
       img.onload = () => {
-        // --- Watermark & Header ---
         doc.setGState(new doc.GState({ opacity: 0.15 }));
         doc.addImage(img, 'JPEG', 35, 70, 140, 140);
         doc.setGState(new doc.GState({ opacity: 1.0 })); 
@@ -223,12 +220,10 @@ const CanteenManagerDashboard = () => {
         doc.rect(55, 30, 100, 8);
         doc.setFontSize(12); doc.setFont("helvetica", "bold");
         doc.text("DEPARTMENT-WISE BILLING REPORT", 62, 36);
-
-        // --- Details ---
         doc.setFontSize(10); doc.setFont("helvetica", "normal");
         const deptCodeName = filterDept !== 'All Departments' ? filterDept.replace("M.Tech ", "M").substring(0, 5).toUpperCase() : 'ALL';
-        const dateRef = new Date().toISOString().split('T')[0].replace(/-/g, '');
-        doc.text(`Ref No: PICT/CNTN/${dateRef}/${deptCodeName}-01`, 14, 50);
+        const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        doc.text(`Ref No: PICT/CNTN/${dateStr}/${deptCodeName}-01`, 14, 50);
         doc.text(`Date: ${startDate} to ${endDate}`, 140, 50);
         doc.setFont("helvetica", "bold");
         doc.text(`Department: ${filterDept.toUpperCase()}`, 14, 58);
@@ -242,7 +237,6 @@ const CanteenManagerDashboard = () => {
                 const rawDate = new Date(order.createdAt || order.orderDate).toLocaleDateString('en-GB');
                 const orderDateIso = new Date(order.createdAt || order.orderDate).toISOString().split('T')[0];
                 const baseName = order.voucherCode?.startsWith('G-') ? `${order.guestName} (Host: ${order.facultyId?.fullName})` : (order.facultyId?.fullName || 'Unknown');
-                
                 const matchedFaculty = allFaculty.find(f => (order.facultyId && f._id === (order.facultyId._id || order.facultyId)));
                 const year = matchedFaculty?.academicYear || 'N/A';
                 let sub = 'Duty/Other';
@@ -253,7 +247,6 @@ const CanteenManagerDashboard = () => {
                     });
                     if(m) sub = m.split('|')[2];
                 }
-
                 const key = `${baseName}_${rawDate}`;
                 if (!totals[key]) totals[key] = { name: baseName, date: rawDate, details: `${year}\n${sub}`, items: [], total: 0 };
                 totals[key].total += order.totalAmount;
@@ -298,7 +291,7 @@ const CanteenManagerDashboard = () => {
         doc.line(45, sigY + 25, 85, sigY + 25); doc.text("CEO", 60, sigY + 31);
         doc.line(135, sigY + 25, 175, sigY + 25); doc.text("PRINCIPAL", 148, sigY + 31);
 
-        doc.save(`PICT_Report_${deptCodeName}.pdf`);
+        doc.save(`Canteen_Report_${deptCodeName}.pdf`);
       };
   };
 
@@ -307,7 +300,7 @@ const CanteenManagerDashboard = () => {
       doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("PICT CANTEEN", 40, 10, { align: "center" });
       doc.setFontSize(8); doc.text("------------------------------------------", 40, 15, { align: "center" });
       doc.text(`Date: ${new Date().toLocaleString()}`, 10, 22);
-      doc.text(`Billed To: ${order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName}`, 10, 27);
+      doc.text(`Billed To: ${order.facultyId?.fullName || order.guestName || 'Walk-in'}`, 10, 27);
       doc.text("------------------------------------------", 40, 38, { align: "center" });
       let y = 44;
       order.items.forEach(i => {
@@ -317,7 +310,6 @@ const CanteenManagerDashboard = () => {
       });
       doc.text("------------------------------------------", 40, y + 2, { align: "center" });
       doc.setFontSize(10); doc.text(`TOTAL: Rs. ${order.totalAmount}`, 10, y + 8);
-      
       const blob = doc.output('bloburl');
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
@@ -371,7 +363,6 @@ const CanteenManagerDashboard = () => {
                       </div>
 
                       <div className="flex flex-wrap items-end gap-4 mb-8 bg-slate-50 p-5 rounded-2xl border shadow-inner">
-                          {/* 🚀 NEW: Search Bar Integration */}
                           <div className="flex-1 min-w-[250px] relative">
                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Search Name</label>
                              <div className="relative">
@@ -380,45 +371,47 @@ const CanteenManagerDashboard = () => {
                              </div>
                           </div>
                           <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Department</label>
-                          <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className="p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold focus:border-blue-500 bg-white">
+                          <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className="p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 bg-white">
                               <option value="All Departments">All Departments</option>
                               {departments.map(d => <option key={d._id} value={d.name}>{d.name}</option>)}
                           </select></div>
-                          <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">From</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold" /></div>
-                          <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">To</label><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold" /></div>
                           <button onClick={downloadReport} className="bg-slate-800 hover:bg-black text-white px-5 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg active:scale-95"><Download size={18} /> Export PDF</button>
                       </div>
 
                       <div className="overflow-x-auto border-2 border-slate-100 rounded-2xl shadow-sm">
                           <table className="w-full text-left border-collapse">
                               <thead className="bg-slate-50 border-b-2 border-slate-100 text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                                  <tr><th className="py-5 px-6">Billed To</th><th className="py-5 px-6">Department</th><th className="py-5 px-6">Date</th><th className="py-5 px-6">Items</th><th className="py-5 px-6">Amount</th><th className="py-5 px-6 text-right">Actions</th></tr>
+                                  <tr><th className="py-5 px-6">Billed To</th><th className="py-5 px-6">Department</th><th className="py-5 px-6">Date</th><th className="py-5 px-6">Items Ordered</th><th className="py-5 px-6">Amount</th><th className="py-5 px-6 text-right">Actions</th></tr>
                               </thead>
                               <tbody className="divide-y-2 divide-slate-50 text-sm font-medium">
-                                  {filteredOrders.map(order => (
-                                          <tr key={order._id} className="hover:bg-blue-50/50 transition-colors bg-white">
+                                  {filteredOrders.map(order => {
+                                      const isCompleted = order.status === 'Completed';
+                                      return (
+                                          <tr key={order._id} className="hover:bg-blue-50/50 transition-colors bg-white group">
                                               <td className="py-4 px-6">
-                                                <p className="font-bold text-slate-800">{order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName}</p>
-                                                {order.status === 'Completed' && <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded w-max mt-1 border border-emerald-100 uppercase tracking-tighter"><CheckCircle2 size={10}/> Order Complete</span>}
+                                                  <p className="font-bold text-slate-800">{order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName}</p>
+                                                  {isCompleted && <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded w-max mt-1 border border-emerald-100 uppercase tracking-tighter"><CheckCircle2 size={10}/> Order Complete</span>}
                                               </td>
                                               <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-md text-[10px] border border-slate-200 uppercase">{order.departmentId?.name || 'Unknown'}</span></td>
                                               <td className="py-4 px-6 text-slate-500 text-xs">{new Date(order.createdAt).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit'})}</td>
-                                              <td className="py-4 px-6 text-slate-600 text-xs">{order.items?.map(i => `${i.itemName} (x${i.quantity})`).join(', ')}</td>
+                                              <td className="py-4 px-6 text-slate-600 text-xs font-semibold leading-relaxed max-w-xs">{order.items?.map(i => `${i.itemName} (x${i.quantity})`).join(', ')}</td>
                                               <td className="py-4 px-6 font-black text-emerald-600 text-base">₹{order.totalAmount}</td>
                                               <td className="py-4 px-6 text-right">
                                                   <div className="flex gap-2 justify-end">
-                                                      {/* 🚀 FIXED ACTIONS: Cancel and Complete */}
-                                                      <button onClick={() => cancelOrder(order._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Delete/Cancel Order"><X size={20}/></button>
-                                                      {order.status !== 'Completed' ? (
-                                                        <button onClick={() => completeOrder(order)} className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all shadow-md shadow-emerald-100" title="Complete & Print"><Check size={20}/></button>
+                                                      {/* 🚀 LOGIC: Replace Cancel/Complete with Reprint if status is Completed */}
+                                                      {!isCompleted ? (
+                                                        <>
+                                                          <button onClick={() => cancelOrder(order._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Delete Order"><X size={20}/></button>
+                                                          <button onClick={() => completeOrder(order)} className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all shadow-md shadow-emerald-100" title="Complete & Print"><Check size={20}/></button>
+                                                        </>
                                                       ) : (
-                                                        <button onClick={() => printReceipt(order)} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all" title="Reprint Receipt"><Printer size={20}/></button>
+                                                        <button onClick={() => printReceipt(order)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all shadow-sm" title="Reprint Receipt"><Printer size={20}/></button>
                                                       )}
                                                   </div>
                                               </td>
                                           </tr>
-                                      ))
-                                  }
+                                      )
+                                  })}
                               </tbody>
                           </table>
                       </div>

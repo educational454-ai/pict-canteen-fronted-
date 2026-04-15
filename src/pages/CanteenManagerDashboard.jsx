@@ -29,8 +29,8 @@ const CanteenManagerDashboard = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [allFaculty, setAllFaculty] = useState([]);
   const [filterDept, setFilterDept] = useState('All Departments');
-  const [searchTerm, setSearchTerm] = useState(''); 
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(''); // 🚀 NEW: Search state
+  const [isRefreshing, setIsRefreshing] = useState(false); 
   
   const todayStr = getLocalYYYYMMDD();
   const [startDate, setStartDate] = useState(todayStr);
@@ -45,7 +45,11 @@ const CanteenManagerDashboard = () => {
     fetchDepartments();
     fetchMenuItems();
     fetchAllFaculty(); 
-    const autoRefreshInterval = setInterval(() => { refreshDataSilently(); }, 10000); 
+
+    const autoRefreshInterval = setInterval(() => {
+        refreshDataSilently();
+    }, 10000); 
+
     return () => clearInterval(autoRefreshInterval); 
   }, []);
 
@@ -57,9 +61,14 @@ const CanteenManagerDashboard = () => {
     try { 
         const res = await API.get('/orders/all'); 
         if (Array.isArray(res.data)) {
-            setOrders(prevOrders => res.data.length !== prevOrders.length ? res.data : prevOrders);
+            setOrders(prevOrders => {
+                if (res.data.length !== prevOrders.length) {
+                    return res.data;
+                }
+                return prevOrders;
+            });
         }
-    } catch (err) { console.error("Silent sync failed"); }
+    } catch (err) { console.error("Auto-refresh failed"); }
   };
 
   const fetchOrders = async () => {
@@ -93,6 +102,7 @@ const CanteenManagerDashboard = () => {
   };
 
   const filteredOrders = orders.filter(order => {
+      // 🚀 NEW: Filter logic by search name
       const orderName = (order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName) || "";
       if (!orderName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
 
@@ -130,23 +140,22 @@ const CanteenManagerDashboard = () => {
       ? (feedbackOrders.reduce((sum, o) => sum + o.rating, 0) / feedbackOrders.length).toFixed(1) 
       : 0;
 
-  // 🚀 ACTION: CANCEL/DELETE
+  // 🚀 NEW: ACTION HANDLERS
   const cancelOrder = async (orderId) => {
-    if (window.confirm("Are you sure you want to permanently delete this order? It will be removed from all reports.")) {
+    if (window.confirm("Are you sure you want to permanently delete/cancel this order? It will be removed from reports.")) {
         try {
             await API.delete(`/orders/delete/${orderId}`);
-            toast.success("Order Deleted Successfully");
+            toast.success("Order deleted successfully");
             fetchOrders();
-        } catch (err) { toast.error("Failed to cancel order. Is backend route /delete/:id ready?"); }
+        } catch (err) { toast.error("Failed to cancel order."); }
     }
   };
 
-  // 🚀 ACTION: COMPLETE & PRINT
   const completeOrder = async (order) => {
     try {
         await API.put(`/orders/${order._id}/status`, { status: 'Completed' });
         toast.success("Order Completed!");
-        printReceipt(order);
+        printReceipt(order); // Auto-open print
         fetchOrders();
     } catch (err) { toast.error("Failed to update status."); }
   };
@@ -161,16 +170,16 @@ const CanteenManagerDashboard = () => {
       try {
           if (editingItemId) {
               await API.put(`/menu/update/${editingItemId}`, menuForm);
-              toast.success("Item updated!"); 
+              toast.success("Item updated successfully!"); 
           } else {
               await API.post('/menu/add', menuForm);
-              toast.success("New item added!"); 
+              toast.success("New item added to menu!"); 
           }
           setIsMenuModalOpen(false);
           setMenuForm({ itemName: '', category: 'Snacks', price: '' });
           setEditingItemId(null);
           fetchMenuItems();
-      } catch (err) { toast.error("Failed to save item."); }
+      } catch (err) { toast.error(err.response?.data?.error || "Failed to save item."); }
   };
 
   const editMenuItem = (item) => {
@@ -180,12 +189,12 @@ const CanteenManagerDashboard = () => {
   };
 
   const deleteMenuItem = async (id) => {
-      if(window.confirm("Are you sure?")) {
+      if(window.confirm("Are you sure you want to permanently delete this item?")) {
           try { 
               await API.delete(`/menu/delete/${id}`); 
-              toast.success("Deleted."); 
+              toast.success("Item deleted."); 
               fetchMenuItems(); 
-          } catch (err) { toast.error("Failed."); }
+          } catch (err) { toast.error("Failed to delete item."); }
       }
   };
 
@@ -193,7 +202,7 @@ const CanteenManagerDashboard = () => {
       try {
           await API.put(`/menu/update/${item._id}`, { ...item, isAvailable: !item.isAvailable });
           fetchMenuItems();
-      } catch (err) { console.error("Failed update"); }
+      } catch (err) { console.error("Failed to update availability"); }
   };
 
   const downloadReport = () => {
@@ -215,7 +224,7 @@ const CanteenManagerDashboard = () => {
         doc.setFontSize(12); doc.setFont("helvetica", "bold");
         doc.text("DEPARTMENT-WISE BILLING REPORT", 62, 36);
 
-        // --- Ref No & Date ---
+        // --- Details ---
         doc.setFontSize(10); doc.setFont("helvetica", "normal");
         const deptCodeName = filterDept !== 'All Departments' ? filterDept.replace("M.Tech ", "M").substring(0, 5).toUpperCase() : 'ALL';
         const dateRef = new Date().toISOString().split('T')[0].replace(/-/g, '');
@@ -224,7 +233,6 @@ const CanteenManagerDashboard = () => {
         doc.setFont("helvetica", "bold");
         doc.text(`Department: ${filterDept.toUpperCase()}`, 14, 58);
 
-        // --- Data Logic for Sections ---
         const facultyOrders = filteredOrders.filter(o => !o.voucherCode?.startsWith('G-'));
         const guestOrders = filteredOrders.filter(o => o.voucherCode?.startsWith('G-'));
 
@@ -257,7 +265,6 @@ const CanteenManagerDashboard = () => {
         const facultyTotals = processTotals(facultyOrders);
         const guestTotals = processTotals(guestOrders);
 
-        // --- SECTION A ---
         let currentY = 70;
         doc.setFontSize(11); doc.text("SECTION A: FACULTY CONSUMPTION", 14, currentY);
         const fBody = facultyTotals.map((d, i) => [i + 1, d.date, d.name, d.details, d.items.join(' | '), `Rs. ${d.total}`]);
@@ -268,7 +275,6 @@ const CanteenManagerDashboard = () => {
             theme: 'grid', headStyles: { fillColor: [50, 50, 50] }, bodyStyles: { fontStyle: 'bold', fontSize: 8.5 }
         });
 
-        // --- SECTION B ---
         currentY = doc.lastAutoTable.finalY + 15;
         doc.text("SECTION B: GUEST/EXTERNAL CONSUMPTION", 14, currentY);
         const gBody = guestTotals.map((d, i) => [i + 1, d.date, d.name, d.details, d.items.join(' | '), `Rs. ${d.total}`]);
@@ -279,11 +285,9 @@ const CanteenManagerDashboard = () => {
             theme: 'grid', headStyles: { fillColor: [50, 50, 50] }, bodyStyles: { fontStyle: 'bold', fontSize: 8.5 }
         });
 
-        // --- Grand Total & Signatures ---
         const grand = facultyTotals.reduce((s,v)=>s+v.total,0) + guestTotals.reduce((s,v)=>s+v.total,0);
         currentY = doc.lastAutoTable.finalY + 10;
-        doc.rect(130, currentY, 66, 10);
-        doc.setFontSize(12); doc.text(`GRAND TOTAL: Rs. ${grand}`, 135, currentY + 7);
+        doc.rect(130, currentY, 66, 10); doc.setFontSize(12); doc.text(`GRAND TOTAL: Rs. ${grand}`, 135, currentY + 7);
 
         let sigY = currentY + 40;
         if (sigY > 270) { doc.addPage(); sigY = 40; }
@@ -294,8 +298,7 @@ const CanteenManagerDashboard = () => {
         doc.line(45, sigY + 25, 85, sigY + 25); doc.text("CEO", 60, sigY + 31);
         doc.line(135, sigY + 25, 175, sigY + 25); doc.text("PRINCIPAL", 148, sigY + 31);
 
-        doc.save(`PICT_Canteen_Report_${deptCodeName}.pdf`);
-        toast.success("PDF Downloaded!");
+        doc.save(`PICT_Report_${deptCodeName}.pdf`);
       };
   };
 
@@ -305,7 +308,6 @@ const CanteenManagerDashboard = () => {
       doc.setFontSize(8); doc.text("------------------------------------------", 40, 15, { align: "center" });
       doc.text(`Date: ${new Date().toLocaleString()}`, 10, 22);
       doc.text(`Billed To: ${order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName}`, 10, 27);
-      doc.text(`Dept: ${order.departmentId?.name || 'N/A'}`, 10, 32); 
       doc.text("------------------------------------------", 40, 38, { align: "center" });
       let y = 44;
       order.items.forEach(i => {
@@ -341,9 +343,9 @@ const CanteenManagerDashboard = () => {
 
       <div className="max-w-7xl mx-auto p-4 md:p-8">
           <div className="flex gap-2 border-b mb-6 bg-white p-1.5 rounded-xl shadow-sm border inline-flex overflow-x-auto max-w-full">
-              <button onClick={() => setActiveTab('orders')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800'}`}>Live Orders</button>
-              <button onClick={() => setActiveTab('menu')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg ${activeTab === 'menu' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800'}`}>Menu Management</button>
-              <button onClick={() => setActiveTab('feedback')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg ${activeTab === 'feedback' ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100' : 'text-slate-500 hover:text-slate-800'}`}>Customer Feedback</button>
+              <button onClick={() => setActiveTab('orders')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800'}`}>Live Orders</button>
+              <button onClick={() => setActiveTab('menu')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'menu' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800'}`}>Menu Management</button>
+              <button onClick={() => setActiveTab('feedback')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'feedback' ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100' : 'text-slate-500 hover:text-slate-800'}`}>Customer Feedback</button>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border p-6 min-h-[600px]">
@@ -369,7 +371,7 @@ const CanteenManagerDashboard = () => {
                       </div>
 
                       <div className="flex flex-wrap items-end gap-4 mb-8 bg-slate-50 p-5 rounded-2xl border shadow-inner">
-                          {/* 🚀 SEARCH BAR ADDED BACK */}
+                          {/* 🚀 NEW: Search Bar Integration */}
                           <div className="flex-1 min-w-[250px] relative">
                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Search Name</label>
                              <div className="relative">
@@ -378,7 +380,7 @@ const CanteenManagerDashboard = () => {
                              </div>
                           </div>
                           <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Department</label>
-                          <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className="p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 bg-white">
+                          <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className="p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold focus:border-blue-500 bg-white">
                               <option value="All Departments">All Departments</option>
                               {departments.map(d => <option key={d._id} value={d.name}>{d.name}</option>)}
                           </select></div>
@@ -394,17 +396,24 @@ const CanteenManagerDashboard = () => {
                               </thead>
                               <tbody className="divide-y-2 divide-slate-50 text-sm font-medium">
                                   {filteredOrders.map(order => (
-                                          <tr key={order._id} className="hover:bg-blue-50/50 bg-white transition-colors">
-                                              <td className="py-4 px-6"><p className="font-bold text-slate-800">{order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName}</p></td>
+                                          <tr key={order._id} className="hover:bg-blue-50/50 transition-colors bg-white">
+                                              <td className="py-4 px-6">
+                                                <p className="font-bold text-slate-800">{order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName}</p>
+                                                {order.status === 'Completed' && <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded w-max mt-1 border border-emerald-100 uppercase tracking-tighter"><CheckCircle2 size={10}/> Order Complete</span>}
+                                              </td>
                                               <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-md text-[10px] border border-slate-200 uppercase">{order.departmentId?.name || 'Unknown'}</span></td>
                                               <td className="py-4 px-6 text-slate-500 text-xs">{new Date(order.createdAt).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit'})}</td>
                                               <td className="py-4 px-6 text-slate-600 text-xs">{order.items?.map(i => `${i.itemName} (x${i.quantity})`).join(', ')}</td>
                                               <td className="py-4 px-6 font-black text-emerald-600 text-base">₹{order.totalAmount}</td>
                                               <td className="py-4 px-6 text-right">
                                                   <div className="flex gap-2 justify-end">
-                                                      {/* 🚀 ACTION BUTTONS RESTORED */}
+                                                      {/* 🚀 FIXED ACTIONS: Cancel and Complete */}
                                                       <button onClick={() => cancelOrder(order._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Delete/Cancel Order"><X size={20}/></button>
-                                                      <button onClick={() => completeOrder(order)} className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all shadow-md shadow-emerald-100" title="Complete & Print"><Check size={20}/></button>
+                                                      {order.status !== 'Completed' ? (
+                                                        <button onClick={() => completeOrder(order)} className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all shadow-md shadow-emerald-100" title="Complete & Print"><Check size={20}/></button>
+                                                      ) : (
+                                                        <button onClick={() => printReceipt(order)} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all" title="Reprint Receipt"><Printer size={20}/></button>
+                                                      )}
                                                   </div>
                                               </td>
                                           </tr>

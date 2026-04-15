@@ -20,6 +20,16 @@ const categoryPriceLimits = {
     'Lunch': 100
 };
 
+const getUniqueOrdersById = (orderList) => {
+    const uniqueMap = new Map();
+    orderList.forEach(order => {
+        if (order?._id && !uniqueMap.has(order._id)) {
+            uniqueMap.set(order._id, order);
+        }
+    });
+    return Array.from(uniqueMap.values());
+};
+
 const CanteenManagerDashboard = () => {
   const navigate = useNavigate();
   
@@ -119,6 +129,10 @@ const CanteenManagerDashboard = () => {
       }
       return true;
   });
+
+    const liveOrders = filteredOrders.filter(order => order.status !== 'Completed');
+    const processedOrders = filteredOrders.filter(order => order.status === 'Completed');
+    const reportOrders = getUniqueOrdersById(processedOrders);
 
   const itemCounts = {};
   filteredOrders.forEach(o => {
@@ -233,8 +247,8 @@ const CanteenManagerDashboard = () => {
         doc.setFont("helvetica", "bold");
         doc.text(`Department: ${filterDept.toUpperCase()}`, 14, 58);
 
-        const facultyOrders = filteredOrders.filter(o => !o.voucherCode?.startsWith('G-'));
-        const guestOrders = filteredOrders.filter(o => o.voucherCode?.startsWith('G-'));
+        const facultyOrders = reportOrders.filter(o => !o.voucherCode?.startsWith('G-'));
+        const guestOrders = reportOrders.filter(o => o.voucherCode?.startsWith('G-'));
 
         const processTotals = (orderArray) => {
             const totals = {};
@@ -342,7 +356,7 @@ const CanteenManagerDashboard = () => {
       </header>
 
       <div className="max-w-7xl mx-auto p-4 md:p-8">
-          <div className="flex gap-2 border-b mb-6 bg-white p-1.5 rounded-xl shadow-sm border inline-flex overflow-x-auto max-w-full">
+          <div className="gap-2 border-b mb-6 bg-white p-1.5 rounded-xl shadow-sm border inline-flex overflow-x-auto max-w-full">
               <button onClick={() => setActiveTab('orders')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800'}`}>Live Orders</button>
               <button onClick={() => setActiveTab('menu')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'menu' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800'}`}>Menu Management</button>
               <button onClick={() => setActiveTab('feedback')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'feedback' ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100' : 'text-slate-500 hover:text-slate-800'}`}>Customer Feedback</button>
@@ -395,11 +409,15 @@ const CanteenManagerDashboard = () => {
                                   <tr><th className="py-5 px-6">Billed To</th><th className="py-5 px-6">Department</th><th className="py-5 px-6">Date</th><th className="py-5 px-6">Items</th><th className="py-5 px-6">Amount</th><th className="py-5 px-6 text-right">Actions</th></tr>
                               </thead>
                               <tbody className="divide-y-2 divide-slate-50 text-sm font-medium">
-                                  {filteredOrders.map(order => (
+                                  {liveOrders.length === 0 && (
+                                      <tr>
+                                        <td colSpan="6" className="py-10 px-6 text-center text-slate-400 font-semibold">No live orders in selected filters.</td>
+                                      </tr>
+                                  )}
+                                  {liveOrders.map(order => (
                                           <tr key={order._id} className="hover:bg-blue-50/50 transition-colors bg-white">
                                               <td className="py-4 px-6">
                                                 <p className="font-bold text-slate-800">{order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName}</p>
-                                                {order.status === 'Completed' && <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded w-max mt-1 border border-emerald-100 uppercase tracking-tighter"><CheckCircle2 size={10}/> Order Complete</span>}
                                               </td>
                                               <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-md text-[10px] border border-slate-200 uppercase">{order.departmentId?.name || 'Unknown'}</span></td>
                                               <td className="py-4 px-6 text-slate-500 text-xs">{new Date(order.createdAt).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit'})}</td>
@@ -409,11 +427,7 @@ const CanteenManagerDashboard = () => {
                                                   <div className="flex gap-2 justify-end">
                                                       {/* 🚀 FIXED ACTIONS: Cancel and Complete */}
                                                       <button onClick={() => cancelOrder(order._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Delete/Cancel Order"><X size={20}/></button>
-                                                      {order.status !== 'Completed' ? (
-                                                        <button onClick={() => completeOrder(order)} className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all shadow-md shadow-emerald-100" title="Complete & Print"><Check size={20}/></button>
-                                                      ) : (
-                                                        <button onClick={() => printReceipt(order)} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all" title="Reprint Receipt"><Printer size={20}/></button>
-                                                      )}
+                                                      <button onClick={() => completeOrder(order)} className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all shadow-md shadow-emerald-100" title="Complete & Print"><Check size={20}/></button>
                                                   </div>
                                               </td>
                                           </tr>
@@ -421,6 +435,44 @@ const CanteenManagerDashboard = () => {
                                   }
                               </tbody>
                           </table>
+                      </div>
+
+                      <div className="mt-8">
+                          <div className="flex items-center justify-between mb-3">
+                              <h3 className="text-lg font-black text-slate-800">Processed Orders</h3>
+                              <span className="text-xs font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full">
+                                  {processedOrders.length} Processed
+                              </span>
+                          </div>
+                          <div className="overflow-x-auto border-2 border-emerald-100 rounded-2xl shadow-sm">
+                              <table className="w-full text-left border-collapse">
+                                  <thead className="bg-emerald-50 border-b-2 border-emerald-100 text-[11px] font-black text-emerald-700 uppercase tracking-widest">
+                                      <tr><th className="py-5 px-6">Billed To</th><th className="py-5 px-6">Department</th><th className="py-5 px-6">Date</th><th className="py-5 px-6">Items</th><th className="py-5 px-6">Amount</th><th className="py-5 px-6 text-right">Actions</th></tr>
+                                  </thead>
+                                  <tbody className="divide-y-2 divide-emerald-50 text-sm font-medium">
+                                      {processedOrders.length === 0 && (
+                                          <tr>
+                                            <td colSpan="6" className="py-10 px-6 text-center text-slate-400 font-semibold">No processed orders yet.</td>
+                                          </tr>
+                                      )}
+                                      {processedOrders.map(order => (
+                                          <tr key={order._id} className="hover:bg-emerald-50/40 transition-colors bg-white">
+                                              <td className="py-4 px-6">
+                                                <p className="font-bold text-slate-800">{order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName}</p>
+                                                <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded w-max mt-1 border border-emerald-100 uppercase tracking-tighter"><CheckCircle2 size={10}/> Order Complete</span>
+                                              </td>
+                                              <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-md text-[10px] border border-slate-200 uppercase">{order.departmentId?.name || 'Unknown'}</span></td>
+                                              <td className="py-4 px-6 text-slate-500 text-xs">{new Date(order.createdAt).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit'})}</td>
+                                              <td className="py-4 px-6 text-slate-600 text-xs">{order.items?.map(i => `${i.itemName} (x${i.quantity})`).join(', ')}</td>
+                                              <td className="py-4 px-6 font-black text-emerald-600 text-base">₹{order.totalAmount}</td>
+                                              <td className="py-4 px-6 text-right">
+                                                  <button onClick={() => printReceipt(order)} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all" title="Reprint Receipt"><Printer size={20}/></button>
+                                              </td>
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                              </table>
+                          </div>
                       </div>
                   </div>
               )}

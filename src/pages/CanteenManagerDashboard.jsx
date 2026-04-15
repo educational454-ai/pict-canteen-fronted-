@@ -5,6 +5,7 @@ import { Download, Printer, Plus, Edit, Trash2, LogOut, Utensils, CheckCircle2, 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import toast from 'react-hot-toast'; 
+import { io } from 'socket.io-client';
 
 const getLocalYYYYMMDD = (dateObj = new Date()) => {
   const year = dateObj.getFullYear();
@@ -28,6 +29,11 @@ const getUniqueOrdersById = (orderList) => {
         }
     });
     return Array.from(uniqueMap.values());
+};
+
+const getSocketBaseUrl = () => {
+    const apiBase = API?.defaults?.baseURL || '';
+    return apiBase.replace(/\/api\/?$/, '');
 };
 
 const CanteenManagerDashboard = () => {
@@ -72,6 +78,30 @@ const CanteenManagerDashboard = () => {
     return () => clearInterval(autoRefreshInterval); 
   }, []);
 
+    useEffect(() => {
+        const socketBaseUrl = getSocketBaseUrl();
+        if (!socketBaseUrl) return;
+
+        const socket = io(socketBaseUrl, {
+            transports: ['websocket', 'polling']
+        });
+
+        const syncOrders = () => {
+            refreshDataSilently();
+        };
+
+        socket.on('order:placed', syncOrders);
+        socket.on('order:updated', syncOrders);
+        socket.on('order:deleted', syncOrders);
+
+        return () => {
+            socket.off('order:placed', syncOrders);
+            socket.off('order:updated', syncOrders);
+            socket.off('order:deleted', syncOrders);
+            socket.disconnect();
+        };
+    }, []);
+
   useEffect(() => {
       sessionStorage.setItem('managerTab', activeTab);
   }, [activeTab]);
@@ -79,14 +109,7 @@ const CanteenManagerDashboard = () => {
   const refreshDataSilently = async () => {
     try { 
         const res = await API.get('/orders/all'); 
-        if (Array.isArray(res.data)) {
-            setOrders(prevOrders => {
-                if (res.data.length !== prevOrders.length) {
-                    return res.data;
-                }
-                return prevOrders;
-            });
-        }
+        if (Array.isArray(res.data)) setOrders(res.data);
     } catch (err) { console.error("Auto-refresh failed"); }
   };
 
@@ -402,7 +425,7 @@ const CanteenManagerDashboard = () => {
               <button onClick={() => setActiveTab('feedback')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'feedback' ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100' : 'text-slate-500 hover:text-slate-800'}`}>Customer Feedback</button>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border p-6 min-h-[600px]">
+          <div className="bg-white rounded-2xl shadow-sm border p-6 min-h-150">
               {activeTab === 'orders' && (
                   <div className="animate-in fade-in duration-300">
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -426,7 +449,7 @@ const CanteenManagerDashboard = () => {
 
                       <div className="flex flex-wrap items-end gap-4 mb-8 bg-slate-50 p-5 rounded-2xl border shadow-inner">
                           {/* 🚀 NEW: Search Bar Integration */}
-                          <div className="flex-1 min-w-[250px] relative">
+                          <div className="flex-1 min-w-62.5 relative">
                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Search Name</label>
                              <div className="relative">
                                 <Search className="absolute left-3 top-3 text-slate-400" size={16} />

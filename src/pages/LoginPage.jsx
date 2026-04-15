@@ -10,14 +10,16 @@ const LoginPage = () => {
   const [voucher, setVoucher] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [authLocks, setAuthLocks] = useState({ voucher: false, admin: false });
   const [error, setError] = useState('');
+  const isAuthLoading = authLocks.voucher || authLocks.admin;
 
   const handleVoucherLogin = async (e) => {
     e.preventDefault();
+    if (authLocks.voucher || authLocks.admin) return;
     if (!voucher) return setError("Please enter a voucher code");
 
-    setLoading(true);
+    setAuthLocks(prev => ({ ...prev, voucher: true }));
     setError('');
 
     try {
@@ -31,13 +33,15 @@ const LoginPage = () => {
     } catch (err) {
       setError(err.response?.data?.error || "Invalid Voucher Code");
     } finally {
-      setLoading(false);
+      setAuthLocks(prev => ({ ...prev, voucher: false }));
     }
   };
 
   const handleAdminLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    if (authLocks.voucher || authLocks.admin) return;
+    setAuthLocks(prev => ({ ...prev, admin: true }));
+    setError('');
     try {
       const res = await API.post('/users/login', { email, password });
       const { user } = res.data;
@@ -64,7 +68,7 @@ const LoginPage = () => {
     } catch (err) {
       setError("Invalid Email or Password");
     } finally {
-      setLoading(false);
+      setAuthLocks(prev => ({ ...prev, admin: false }));
     }
   };
 
@@ -81,10 +85,10 @@ const LoginPage = () => {
 
         <div className="bg-white p-8 rounded-3xl shadow-2xl w-full border border-slate-100">
           <div className="flex mb-8 bg-slate-100 rounded-xl p-1.5 shadow-inner">
-            <button onClick={() => { setIsVoucherLogin(true); setError(''); }} className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-2 font-semibold transition-all ${isVoucherLogin ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
+            <button disabled={isAuthLoading} onClick={() => { setIsVoucherLogin(true); setError(''); }} className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-2 font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${isVoucherLogin ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
               <Ticket size={18} /> Voucher
             </button>
-            <button onClick={() => { setIsVoucherLogin(false); setError(''); }} className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-2 font-semibold transition-all ${!isVoucherLogin ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
+            <button disabled={isAuthLoading} onClick={() => { setIsVoucherLogin(false); setError(''); }} className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-2 font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${!isVoucherLogin ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
               <User size={18} /> Admin
             </button>
           </div>
@@ -101,8 +105,8 @@ const LoginPage = () => {
                 <label className="block text-sm font-bold text-slate-700 mb-2">Voucher Code</label>
                 <input type="text" placeholder="e.g. PICT-CE-1234 or G-1234" value={voucher} onChange={(e) => setVoucher(e.target.value.toUpperCase())} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all uppercase font-medium" />
               </div>
-              <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all flex justify-center items-center gap-2 shadow-lg shadow-blue-200">
-                {loading ? <Loader2 className="animate-spin" /> : "Login to Order"}
+              <button type="submit" disabled={isAuthLoading} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all flex justify-center items-center gap-2 shadow-lg shadow-blue-200 disabled:opacity-60 disabled:cursor-not-allowed">
+                {authLocks.voucher ? <Loader2 className="animate-spin" /> : "Login to Order"}
               </button>
             </form>
           ) : (
@@ -115,8 +119,8 @@ const LoginPage = () => {
                 <label className="block text-sm font-bold text-slate-700 mb-2">Password</label>
                 <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" />
               </div>
-              <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white p-4 rounded-xl font-bold hover:bg-black active:scale-[0.98] transition-all flex justify-center items-center shadow-lg shadow-slate-200">
-                {loading ? <Loader2 className="animate-spin" /> : "Admin Access"}
+              <button type="submit" disabled={isAuthLoading} className="w-full bg-slate-900 text-white p-4 rounded-xl font-bold hover:bg-black active:scale-[0.98] transition-all flex justify-center items-center shadow-lg shadow-slate-200 disabled:opacity-60 disabled:cursor-not-allowed">
+                {authLocks.admin ? <Loader2 className="animate-spin" /> : "Admin Access"}
               </button>
             </form>
           )}

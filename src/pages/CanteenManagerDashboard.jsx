@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
-import { Download, Printer, Plus, Edit, Trash2, LogOut, Utensils, CheckCircle2, XCircle, Power, PowerOff, Star, MessageSquare, PieChart, ChefHat, RefreshCw, Search, Check, X } from 'lucide-react'; 
+import { Download, Printer, Plus, Edit, Trash2, LogOut, Utensils, CheckCircle2, XCircle, Power, PowerOff, Star, MessageSquare, PieChart, ChefHat, RefreshCw, Search, Check, X, Loader2 } from 'lucide-react'; 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import toast from 'react-hot-toast'; 
@@ -49,6 +49,15 @@ const CanteenManagerDashboard = () => {
   const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState(null);
   const [menuForm, setMenuForm] = useState({ itemName: '', category: 'Snacks', price: '' });
+    const [actionLocks, setActionLocks] = useState({
+            exportingPdf: false,
+            processingOrderId: null,
+            cancelingOrderId: null,
+            reprintingOrderId: null,
+            togglingItemId: null,
+            deletingMenuItemId: null,
+            savingMenu: false
+    });
 
   useEffect(() => {
     fetchOrders();
@@ -156,31 +165,39 @@ const CanteenManagerDashboard = () => {
 
   // 🚀 NEW: ACTION HANDLERS
   const cancelOrder = async (orderId) => {
+        if (actionLocks.cancelingOrderId || actionLocks.processingOrderId) return;
     if (window.confirm("Are you sure you want to permanently delete/cancel this order? It will be removed from reports.")) {
+                setActionLocks(prev => ({ ...prev, cancelingOrderId: orderId }));
         try {
             await API.delete(`/orders/delete/${orderId}`);
             toast.success("Order deleted successfully");
             fetchOrders();
         } catch (err) { toast.error("Failed to cancel order."); }
+                finally { setActionLocks(prev => ({ ...prev, cancelingOrderId: null })); }
     }
   };
 
   const completeOrder = async (order) => {
+        if (actionLocks.processingOrderId || actionLocks.cancelingOrderId) return;
+        setActionLocks(prev => ({ ...prev, processingOrderId: order._id }));
     try {
         await API.put(`/orders/${order._id}/status`, { status: 'Completed' });
         toast.success("Order Completed!");
         printReceipt(order); // Auto-open print
         fetchOrders();
     } catch (err) { toast.error("Failed to update status."); }
+        finally { setActionLocks(prev => ({ ...prev, processingOrderId: null })); }
   };
 
   const handleMenuSubmit = async (e) => {
       e.preventDefault();
+      if (actionLocks.savingMenu) return;
       const maxAllowedPrice = categoryPriceLimits[menuForm.category];
       if (maxAllowedPrice && Number(menuForm.price) > maxAllowedPrice) {
           toast.error(`Max price for ${menuForm.category} is ₹${maxAllowedPrice}.`);
           return; 
       }
+      setActionLocks(prev => ({ ...prev, savingMenu: true }));
       try {
           if (editingItemId) {
               await API.put(`/menu/update/${editingItemId}`, menuForm);
@@ -194,6 +211,7 @@ const CanteenManagerDashboard = () => {
           setEditingItemId(null);
           fetchMenuItems();
       } catch (err) { toast.error(err.response?.data?.error || "Failed to save item."); }
+      finally { setActionLocks(prev => ({ ...prev, savingMenu: false })); }
   };
 
   const editMenuItem = (item) => {
@@ -203,23 +221,31 @@ const CanteenManagerDashboard = () => {
   };
 
   const deleteMenuItem = async (id) => {
+      if (actionLocks.deletingMenuItemId || actionLocks.savingMenu) return;
       if(window.confirm("Are you sure you want to permanently delete this item?")) {
+          setActionLocks(prev => ({ ...prev, deletingMenuItemId: id }));
           try { 
               await API.delete(`/menu/delete/${id}`); 
               toast.success("Item deleted."); 
               fetchMenuItems(); 
           } catch (err) { toast.error("Failed to delete item."); }
+          finally { setActionLocks(prev => ({ ...prev, deletingMenuItemId: null })); }
       }
   };
 
   const toggleAvailability = async (item) => {
+      if (actionLocks.togglingItemId || actionLocks.savingMenu) return;
+      setActionLocks(prev => ({ ...prev, togglingItemId: item._id }));
       try {
           await API.put(`/menu/update/${item._id}`, { ...item, isAvailable: !item.isAvailable });
           fetchMenuItems();
       } catch (err) { console.error("Failed to update availability"); }
+      finally { setActionLocks(prev => ({ ...prev, togglingItemId: null })); }
   };
 
   const downloadReport = () => {
+      if (actionLocks.exportingPdf) return;
+      setActionLocks(prev => ({ ...prev, exportingPdf: true }));
       const doc = new jsPDF();
       const img = new Image();
       img.src = '/image1.jpeg'; 
@@ -313,8 +339,22 @@ const CanteenManagerDashboard = () => {
         doc.line(135, sigY + 25, 175, sigY + 25); doc.text("PRINCIPAL", 148, sigY + 31);
 
         doc.save(`PICT_Report_${deptCodeName}.pdf`);
+                setActionLocks(prev => ({ ...prev, exportingPdf: false }));
       };
+            img.onerror = () => {
+                toast.error("Failed to generate PDF report.");
+                setActionLocks(prev => ({ ...prev, exportingPdf: false }));
+            };
   };
+
+    const handleReprint = (order) => {
+            if (actionLocks.reprintingOrderId) return;
+            setActionLocks(prev => ({ ...prev, reprintingOrderId: order._id }));
+            printReceipt(order);
+            setTimeout(() => {
+                    setActionLocks(prev => ({ ...prev, reprintingOrderId: null }));
+            }, 800);
+    };
 
   const printReceipt = (order) => {
       const doc = new jsPDF({ format: [80, 150] }); 
@@ -400,7 +440,7 @@ const CanteenManagerDashboard = () => {
                           </select></div>
                           <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">From</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold" /></div>
                           <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">To</label><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold" /></div>
-                          <button onClick={downloadReport} className="bg-slate-800 hover:bg-black text-white px-5 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg active:scale-95"><Download size={18} /> Export PDF</button>
+                          <button disabled={actionLocks.exportingPdf} onClick={downloadReport} className="bg-slate-800 hover:bg-black text-white px-5 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"><Download size={18} /> {actionLocks.exportingPdf ? 'Generating...' : 'Export PDF'}</button>
                       </div>
 
                       <div className="overflow-x-auto border-2 border-slate-100 rounded-2xl shadow-sm">
@@ -426,8 +466,12 @@ const CanteenManagerDashboard = () => {
                                               <td className="py-4 px-6 text-right">
                                                   <div className="flex gap-2 justify-end">
                                                       {/* 🚀 FIXED ACTIONS: Cancel and Complete */}
-                                                      <button onClick={() => cancelOrder(order._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Delete/Cancel Order"><X size={20}/></button>
-                                                      <button onClick={() => completeOrder(order)} className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all shadow-md shadow-emerald-100" title="Complete & Print"><Check size={20}/></button>
+                                                                                                            <button disabled={!!actionLocks.cancelingOrderId || !!actionLocks.processingOrderId} onClick={() => cancelOrder(order._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed" title="Delete/Cancel Order">
+                                                                                                                {actionLocks.cancelingOrderId === order._id ? <Loader2 size={20} className="animate-spin"/> : <X size={20}/>} 
+                                                                                                            </button>
+                                                                                                            <button disabled={!!actionLocks.processingOrderId || !!actionLocks.cancelingOrderId} onClick={() => completeOrder(order)} className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all shadow-md shadow-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed" title="Complete & Print">
+                                                                                                                {actionLocks.processingOrderId === order._id ? <Loader2 size={20} className="animate-spin"/> : <Check size={20}/>} 
+                                                                                                            </button>
                                                   </div>
                                               </td>
                                           </tr>
@@ -466,7 +510,9 @@ const CanteenManagerDashboard = () => {
                                               <td className="py-4 px-6 text-slate-600 text-xs">{order.items?.map(i => `${i.itemName} (x${i.quantity})`).join(', ')}</td>
                                               <td className="py-4 px-6 font-black text-emerald-600 text-base">₹{order.totalAmount}</td>
                                               <td className="py-4 px-6 text-right">
-                                                  <button onClick={() => printReceipt(order)} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all" title="Reprint Receipt"><Printer size={20}/></button>
+                                                                                                    <button disabled={!!actionLocks.reprintingOrderId} onClick={() => handleReprint(order)} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all disabled:opacity-60 disabled:cursor-not-allowed" title="Reprint Receipt">
+                                                                                                        {actionLocks.reprintingOrderId === order._id ? <Loader2 size={20} className="animate-spin"/> : <Printer size={20}/>} 
+                                                                                                    </button>
                                               </td>
                                           </tr>
                                       ))}
@@ -487,9 +533,9 @@ const CanteenManagerDashboard = () => {
                         <div key={item._id} className={`border-2 p-5 rounded-2xl flex justify-between bg-white group transition-all ${item.isAvailable !== false ? 'hover:border-blue-200 shadow-sm' : 'opacity-60 bg-slate-50'}`}>
                             <div><span className="text-[9px] font-black text-blue-600 uppercase">{item.category}</span><h3 className="font-black text-lg">{item.itemName}</h3><p className="font-black text-slate-500">₹{item.price}</p></div>
                             <div className="flex flex-col gap-2">
-                                <button onClick={() => toggleAvailability(item)} className={`p-2 rounded-xl transition-all ${item.isAvailable !== false ? 'border text-red-500 hover:bg-red-50' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}>{item.isAvailable !== false ? <PowerOff size={18}/> : <Power size={18}/>}</button>
+                                <button disabled={!!actionLocks.togglingItemId || !!actionLocks.deletingMenuItemId || actionLocks.savingMenu} onClick={() => toggleAvailability(item)} className={`p-2 rounded-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed ${item.isAvailable !== false ? 'border text-red-500 hover:bg-red-50' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}>{actionLocks.togglingItemId === item._id ? <Loader2 size={18} className="animate-spin"/> : (item.isAvailable !== false ? <PowerOff size={18}/> : <Power size={18}/>)}</button>
                                 <button onClick={() => editMenuItem(item)} className="p-2 border rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50"><Edit size={18}/></button>
-                                <button onClick={() => deleteMenuItem(item._id)} className="p-2 border rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={18}/></button>
+                                <button disabled={!!actionLocks.deletingMenuItemId || !!actionLocks.togglingItemId || actionLocks.savingMenu} onClick={() => deleteMenuItem(item._id)} className="p-2 border rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed">{actionLocks.deletingMenuItemId === item._id ? <Loader2 size={18} className="animate-spin"/> : <Trash2 size={18}/>}</button>
                             </div>
                         </div>
                     ))}
@@ -543,8 +589,8 @@ const CanteenManagerDashboard = () => {
                       </select>
                       <input required type="number" placeholder="Price" value={menuForm.price} onChange={(e) => setMenuForm({...menuForm, price: e.target.value})} className="w-full p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all" />
                       <div className="flex gap-3 mt-8 pt-4 border-t border-slate-100">
-                          <button type="button" onClick={() => setIsMenuModalOpen(false)} className="flex-1 py-3.5 border-2 border-slate-200 font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all">Cancel</button>
-                          <button type="submit" className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95">Save Item</button>
+                          <button type="button" disabled={actionLocks.savingMenu} onClick={() => setIsMenuModalOpen(false)} className="flex-1 py-3.5 border-2 border-slate-200 font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all disabled:opacity-60 disabled:cursor-not-allowed">Cancel</button>
+                          <button type="submit" disabled={actionLocks.savingMenu} className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">{actionLocks.savingMenu ? 'Saving...' : 'Save Item'}</button>
                       </div>
                   </form>
               </div>

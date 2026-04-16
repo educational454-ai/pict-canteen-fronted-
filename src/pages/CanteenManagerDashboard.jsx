@@ -598,7 +598,27 @@ const CanteenManagerDashboard = () => {
           </div>
       </div>
 
-       
+       {isMenuModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+              <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in duration-200 border border-slate-100">
+                  <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-black text-slate-800 tracking-tight">{editingItemId ? 'Edit Item' : 'New Menu Item'}</h2>
+                      <div className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Utensils size={20}/></div>
+                  </div>
+                  <form onSubmit={handleMenuSubmit} className="space-y-5">
+                      <input required type="text" placeholder="Item Name" value={menuForm.itemName} onChange={(e) => setMenuForm({...menuForm, itemName: e.target.value})} className="w-full p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all" />
+                      <select value={menuForm.category} onChange={(e) => setMenuForm({...menuForm, category: e.target.value})} className="w-full p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all">
+                          <option value="Beverages">Beverages</option><option value="Snacks">Snacks</option><option value="Lunch">Lunch</option><option value="Dessert">Dessert</option>
+                      </select>
+                      <input required type="number" placeholder="Price" value={menuForm.price} onChange={(e) => setMenuForm({...menuForm, price: e.target.value})} className="w-full p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all" />
+                      <div className="flex gap-3 mt-8 pt-4 border-t border-slate-100">
+                          <button type="button" disabled={actionLocks.savingMenu} onClick={() => setIsMenuModalOpen(false)} className="flex-1 py-3.5 border-2 border-slate-200 font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all disabled:opacity-60 disabled:cursor-not-allowed">Cancel</button>
+                          <button type="submit" disabled={actionLocks.savingMenu} className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">{actionLocks.savingMenu ? 'Saving...' : 'Save Item'}</button>
+                      </div>
+                  </form>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

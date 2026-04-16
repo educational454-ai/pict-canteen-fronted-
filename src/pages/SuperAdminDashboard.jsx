@@ -11,6 +11,7 @@ const SuperAdminDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
+    const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   // Reset Modal States
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -85,6 +86,8 @@ const SuperAdminDashboard = () => {
   // GLOBAL REPORT GENERATION
   // ==========================================
   const downloadGlobalReport = () => {
+      if (isGeneratingReport) return;
+      setIsGeneratingReport(true);
       const doc = new jsPDF();
       const img = new Image();
       img.src = '/image1.jpeg'; 
@@ -156,9 +159,13 @@ const SuperAdminDashboard = () => {
         doc.text("STRICTLY CONFIDENTIAL | SYSTEM GENERATED GLOBAL AUDIT", 65, pageHeight - 10);
 
         doc.save(`PICT_Global_Revenue_${dateStr.replace(/\//g, '-')}.pdf`);
+                setIsGeneratingReport(false);
       };
 
-      img.onerror = () => alert("Watermark image not found.");
+            img.onerror = () => {
+                alert("Watermark image not found.");
+                setIsGeneratingReport(false);
+            };
   };
 
   const executeGlobalReset = async (e) => {
@@ -196,14 +203,14 @@ const SuperAdminDashboard = () => {
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-[#f8f9fc] relative font-sans h-screen overflow-hidden">
-      <div className="w-64 bg-[#0a1128] text-white flex flex-col shadow-2xl z-10 shrink-0 hidden md:flex">
+    <div className="w-64 bg-[#0a1128] text-white shadow-2xl z-10 shrink-0 hidden md:flex md:flex-col">
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-2 mb-6">
               <ShieldAlert className="text-yellow-400" size={24} />
               <h2 className="text-lg font-black tracking-wider text-white">SUPER ADMIN</h2>
           </div>
           
-          <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 p-3 rounded-xl border border-yellow-500/30 flex items-center gap-3 shadow-inner">
+          <div className="bg-linear-to-br from-yellow-500/20 to-yellow-600/10 p-3 rounded-xl border border-yellow-500/30 flex items-center gap-3 shadow-inner">
               <div className="w-10 h-10 rounded-full bg-yellow-500 flex items-center justify-center text-lg font-black text-black shrink-0">
                   {adminName.charAt(0).toUpperCase()}
               </div>
@@ -252,8 +259,8 @@ const SuperAdminDashboard = () => {
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">Live Accounting & Monitoring</p>
             </div>
             {activeTab !== 'security' && (
-                <button onClick={downloadGlobalReport} className="w-full sm:w-auto justify-center px-5 py-2.5 bg-yellow-500 text-black rounded-xl text-sm font-black flex items-center gap-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/30">
-                    <Download size={18} /> Global PDF Report
+                <button disabled={isGeneratingReport} onClick={downloadGlobalReport} className="w-full sm:w-auto justify-center px-5 py-2.5 bg-yellow-500 text-black rounded-xl text-sm font-black flex items-center gap-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/30 disabled:opacity-60 disabled:cursor-not-allowed">
+                    <Download size={18} /> {isGeneratingReport ? 'Generating...' : 'Global PDF Report'}
                 </button>
             )}
         </header>
@@ -263,7 +270,7 @@ const SuperAdminDashboard = () => {
             {activeTab === 'overview' && (
                 <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 shrink-0">
-                        <div className="bg-gradient-to-br from-blue-900 to-[#0a1128] p-6 rounded-2xl shadow-xl text-white relative overflow-hidden">
+                        <div className="bg-linear-to-br from-blue-900 to-[#0a1128] p-6 rounded-2xl shadow-xl text-white relative overflow-hidden">
                             <div className="relative z-10">
                                 <p className="text-[11px] font-bold text-blue-300 uppercase tracking-widest mb-1">Total College Revenue</p>
                                 <h3 className="text-4xl font-black tracking-tight">₹{totalCollegeRevenue.toLocaleString()}</h3>
@@ -316,7 +323,7 @@ const SuperAdminDashboard = () => {
 
             {activeTab === 'departments' && (
                 <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-gray-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
+                    <div className="p-6 border-b border-gray-100 shrink-0 bg-linear-to-r from-slate-50 to-white">
                         <h3 className="font-black text-xl text-gray-800 tracking-tight">Department Leaderboard</h3>
                         <p className="text-xs font-semibold text-gray-500 mt-1">Ranking of highest spending departments across the campus.</p>
                     </div>
@@ -337,7 +344,7 @@ const SuperAdminDashboard = () => {
                                         <div className="text-right z-10">
                                             <p className="text-2xl font-black text-blue-600">₹{dept.revenue.toLocaleString()}</p>
                                         </div>
-                                        <div className="absolute left-0 top-0 bottom-0 bg-blue-50/50 -z-0 transition-all duration-1000 ease-out" style={{ width: `${(dept.revenue / maxRevenue) * 100}%` }}></div>
+                                        <div className="absolute left-0 top-0 bottom-0 bg-blue-50/50 z-0 transition-all duration-1000 ease-out" style={{ width: `${(dept.revenue / maxRevenue) * 100}%` }}></div>
                                     </div>
                                 ))
                             )}

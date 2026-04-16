@@ -54,6 +54,16 @@ const CoordinatorDashboard = () => {
     validFrom: new Date().toISOString().split('T')[0], 
     validTill: new Date().toISOString().split('T')[0]
   });
+  const [actionLocks, setActionLocks] = useState({
+    exportFaculty: false,
+    resetSystem: false,
+    bulkUpload: false,
+    addFaculty: false,
+    addGuest: false,
+    exportOrders: false,
+    exportPdf: false,
+    deletingFacultyId: null
+  });
 
   useEffect(() => { sessionStorage.setItem('activeCoordinatorTab', activeTab); }, [activeTab]);
   useEffect(() => { if (deptId) { fetchFaculty(); fetchOrders(); fetchGuests(); } }, [deptId]);
@@ -103,43 +113,57 @@ const CoordinatorDashboard = () => {
     count: orders.filter(o => o.facultyId?._id === f._id).length
   })).sort((a,b) => b.count - a.count)[0];
 
-  const handleExportCSV = () => {
-    const exportData = faculty.map(f => ({
-      "Faculty Name": f.fullName, "Email": f.email, "Mobile": f.mobile, "Year Scope": f.academicYear,
-      "Assigned Subjects": f.assignedSubjects ? f.assignedSubjects.map(s => s.split('|').length === 3 ? s.split('|')[2] : s).join(', ') : 'N/A', 
-      "Voucher Code": f.voucherCode, "Valid From": new Date(f.validFrom).toLocaleDateString(), "Valid Till": new Date(f.validTill).toLocaleDateString()
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Faculty");
-    XLSX.writeFile(workbook, `${deptCode}_Faculty_Vouchers.xlsx`);
-    toast.success("CSV Downloaded!"); 
+  const handleExportCSV = async () => {
+    if (actionLocks.exportFaculty) return;
+    setActionLocks(prev => ({ ...prev, exportFaculty: true }));
+    try {
+      const exportData = faculty.map(f => ({
+        "Faculty Name": f.fullName, "Email": f.email, "Mobile": f.mobile, "Year Scope": f.academicYear,
+        "Assigned Subjects": f.assignedSubjects ? f.assignedSubjects.map(s => s.split('|').length === 3 ? s.split('|')[2] : s).join(', ') : 'N/A', 
+        "Voucher Code": f.voucherCode, "Valid From": new Date(f.validFrom).toLocaleDateString(), "Valid Till": new Date(f.validTill).toLocaleDateString()
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Faculty");
+      XLSX.writeFile(workbook, `${deptCode}_Faculty_Vouchers.xlsx`);
+      toast.success("CSV Downloaded!");
+    } finally {
+      setActionLocks(prev => ({ ...prev, exportFaculty: false }));
+    }
   };
 
-  const handleExportReportsCSV = () => {
-    const exportData = filteredOrders.map(o => {
-      const isGuest = o.voucherCode?.startsWith('G-');
-      const actualGuestName = o.guestName || guests.find(g => g.voucherCode === o.voucherCode)?.guestName || 'Guest';
-      const hostName = o.facultyId?.fullName || "Deleted User";
-      return {
-        "Date": new Date(o.orderDate || o.createdAt).toLocaleDateString(),
-        "Time": new Date(o.orderDate || o.createdAt).toLocaleTimeString(),
-        "Billed To": isGuest ? `${actualGuestName} (Guest)` : hostName,
-        "Host Faculty": isGuest ? hostName : "N/A",
-        "Year Scope": o.facultyId?.academicYear || "N/A",
-        "Voucher Code": o.voucherCode || "N/A",
-        "Items Ordered": o.items.map(i => `${i.itemName} (x${i.quantity})`).join(', '),
-        "Amount (₹)": o.totalAmount
-      };
-    });
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
-    XLSX.writeFile(workbook, `${deptCode}_Usage_${reportYearFilter || 'All_Years'}.xlsx`);
-    toast.success("Orders CSV Downloaded!"); 
+  const handleExportReportsCSV = async () => {
+    if (actionLocks.exportOrders) return;
+    setActionLocks(prev => ({ ...prev, exportOrders: true }));
+    try {
+      const exportData = filteredOrders.map(o => {
+        const isGuest = o.voucherCode?.startsWith('G-');
+        const actualGuestName = o.guestName || guests.find(g => g.voucherCode === o.voucherCode)?.guestName || 'Guest';
+        const hostName = o.facultyId?.fullName || "Deleted User";
+        return {
+          "Date": new Date(o.orderDate || o.createdAt).toLocaleDateString(),
+          "Time": new Date(o.orderDate || o.createdAt).toLocaleTimeString(),
+          "Billed To": isGuest ? `${actualGuestName} (Guest)` : hostName,
+          "Host Faculty": isGuest ? hostName : "N/A",
+          "Year Scope": o.facultyId?.academicYear || "N/A",
+          "Voucher Code": o.voucherCode || "N/A",
+          "Items Ordered": o.items.map(i => `${i.itemName} (x${i.quantity})`).join(', '),
+          "Amount (₹)": o.totalAmount
+        };
+      });
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
+      XLSX.writeFile(workbook, `${deptCode}_Usage_${reportYearFilter || 'All_Years'}.xlsx`);
+      toast.success("Orders CSV Downloaded!");
+    } finally {
+      setActionLocks(prev => ({ ...prev, exportOrders: false }));
+    }
   };
 
   const generatePDFInvoice = () => {
+    if (actionLocks.exportPdf) return;
+    setActionLocks(prev => ({ ...prev, exportPdf: true }));
     const doc = new jsPDF();
     const img = new Image();
     img.src = '/image1.jpeg'; 
@@ -279,21 +303,31 @@ const CoordinatorDashboard = () => {
       doc.text(`SYSTEM GENERATED REPORT | PICT CANTEEN & MESS SECTION | DOWNLOADED: ${downloadTime.toUpperCase()}`, 48, pageHeight - 5);
       doc.save(`${deptCode}_Billing_Report_${reportYearFilter || 'All'}.pdf`);
       toast.success("PDF Report Downloaded!"); 
+      setActionLocks(prev => ({ ...prev, exportPdf: false }));
     };
-    img.onerror = () => toast.error("Failed to load watermark image."); 
+    img.onerror = () => {
+      toast.error("Failed to load watermark image.");
+      setActionLocks(prev => ({ ...prev, exportPdf: false }));
+    }; 
   };
 
   const handleDelete = async (id) => {
+    if (actionLocks.deletingFacultyId) return;
     if (window.confirm("Are you sure you want to revoke this voucher and remove the examiner?")) {
+      setActionLocks(prev => ({ ...prev, deletingFacultyId: id }));
       try { await API.delete(`/faculty/remove/${id}`); toast.success("Examiner deleted and voucher revoked."); fetchFaculty(); } 
       catch (err) { toast.error("Failed to delete."); } 
+      finally { setActionLocks(prev => ({ ...prev, deletingFacultyId: null })); }
     }
   };
 
   const handleResetSystem = async () => {
+     if (actionLocks.resetSystem) return;
      if(window.confirm(`WARNING: This will deactivate ALL faculty records for ${deptCode}. Are you absolutely sure?`)) {
+       setActionLocks(prev => ({ ...prev, resetSystem: true }));
          try { await API.delete(`/faculty/department/${deptId}/reset`); setFaculty([]); toast.success(`All faculty records for ${deptCode} have been cleared.`); } 
          catch (err) { toast.error("Failed to reset system."); } 
+       finally { setActionLocks(prev => ({ ...prev, resetSystem: false })); }
      }
   };
 
@@ -324,7 +358,9 @@ const CoordinatorDashboard = () => {
 
   const handleAddSingle = async (e) => {
     e.preventDefault();
+    if (actionLocks.addFaculty) return;
     if (!deptId || !deptCode) { toast.error("Authentication Error. Please re-login."); return; }
+    setActionLocks(prev => ({ ...prev, addFaculty: true }));
     try {
       const smartSubject = formData.assignedSubject ? `${formData.validFrom}|${formData.validTill}|${formData.assignedSubject}` : '';
       await API.post('/faculty/add', { ...formData, assignedSubject: smartSubject, departmentId: deptId, deptCode: deptCode });
@@ -332,10 +368,13 @@ const CoordinatorDashboard = () => {
       setFormData({ fullName: '', email: '', mobile: '', academicYear: isMTech ? '1st Yr (Regular)' : '2nd Yr (Regular)', assignedSubject: '', validFrom: new Date().toISOString().split('T')[0], validTill: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0] });
       toast.success("Examiner added successfully!"); fetchFaculty();
     } catch (err) { toast.error("Failed to add faculty."); } 
+    finally { setActionLocks(prev => ({ ...prev, addFaculty: false })); }
   };
 
   const handleAddGuest = async (e) => {
     e.preventDefault();
+    if (actionLocks.addGuest) return;
+    setActionLocks(prev => ({ ...prev, addGuest: true }));
     try {
         const res = await API.post('/guests/add', guestFormData);
         toast.success(`Success! Guest Code: ${res.data.voucher}`); 
@@ -343,11 +382,14 @@ const CoordinatorDashboard = () => {
         setGuestFormData({ guestName: '', facultyVoucher: '', validFrom: new Date().toISOString().split('T')[0], validTill: new Date().toISOString().split('T')[0] });
         fetchGuests();
     } catch (err) { toast.error(`Failed: ${err.response?.data?.error || err.message}`); } 
+    finally { setActionLocks(prev => ({ ...prev, addGuest: false })); }
   };
 
   const handleFileUpload = (e) => { 
+    if (actionLocks.bulkUpload) return;
     const file = e.target.files[0];
     if (!file) return;
+    setActionLocks(prev => ({ ...prev, bulkUpload: true }));
     const reader = new FileReader();
     reader.onload = async (evt) => {
       const bstr = evt.target.result;
@@ -386,6 +428,11 @@ const CoordinatorDashboard = () => {
         toast.success(`Success: ${res.data.added} added, ${res.data.extended} extended.`); fetchFaculty(); 
         if(fileInputRef.current) fileInputRef.current.value = ""; 
       } catch (err) { toast.error(`Upload Failed.`); }
+      finally { setActionLocks(prev => ({ ...prev, bulkUpload: false })); }
+    };
+    reader.onerror = () => {
+      toast.error("Failed to read Excel file.");
+      setActionLocks(prev => ({ ...prev, bulkUpload: false }));
     };
     reader.readAsBinaryString(file);
   };
@@ -399,7 +446,7 @@ const CoordinatorDashboard = () => {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-[#f8f9fc] relative font-sans h-screen overflow-hidden">
       {/* SIDEBAR */}
-      <div className="w-64 bg-[#0a1128] text-white flex flex-col shadow-2xl z-10 shrink-0 hidden md:flex">
+      <div className="w-64 bg-[#0a1128] text-white shadow-2xl z-10 shrink-0 hidden md:flex md:flex-col">
         <div className="p-6 border-b border-white/10">
           <h2 className="text-xl font-bold italic tracking-wider text-blue-400 mb-6">PICT EXAM PORTAL</h2>
           <div className="bg-white/5 p-3 rounded-xl border border-white/10 flex items-center gap-3">
@@ -436,8 +483,8 @@ const CoordinatorDashboard = () => {
             <header className="bg-white p-4 md:px-8 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm z-10 shrink-0">
               <h1 className="text-xl md:text-2xl font-bold text-gray-800">Faculty Overview</h1>
               <div className="flex gap-2 w-full sm:w-auto">
-                <button onClick={handleExportCSV} className="flex-1 sm:flex-none justify-center px-3 py-2 border-2 border-blue-100 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1.5 text-blue-600 hover:bg-blue-50"><Download size={16} /> CSV</button>
-                <button onClick={handleResetSystem} className="flex-1 sm:flex-none justify-center px-3 py-2 border-2 border-red-100 bg-red-50 text-red-600 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1.5 hover:bg-red-100"><RotateCcw size={16} /> Reset</button>
+                <button disabled={actionLocks.exportFaculty} onClick={handleExportCSV} className="flex-1 sm:flex-none justify-center px-3 py-2 border-2 border-blue-100 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1.5 text-blue-600 hover:bg-blue-50 disabled:opacity-60 disabled:cursor-not-allowed"><Download size={16} /> {actionLocks.exportFaculty ? 'Generating...' : 'CSV'}</button>
+                <button disabled={actionLocks.resetSystem} onClick={handleResetSystem} className="flex-1 sm:flex-none justify-center px-3 py-2 border-2 border-red-100 bg-red-50 text-red-600 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1.5 hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed"><RotateCcw size={16} /> {actionLocks.resetSystem ? 'Resetting...' : 'Reset'}</button>
               </div>
             </header>
             <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 overflow-hidden">
@@ -455,7 +502,7 @@ const CoordinatorDashboard = () => {
                   </select>
                   <div className="flex gap-2 w-full sm:w-auto">
                     <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
-                    <button onClick={() => fileInputRef.current.click()} className="flex-1 sm:flex-none justify-center px-4 py-2.5 border-2 border-yellow-100 rounded-xl text-sm font-bold flex items-center gap-2 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-all"><FileSpreadsheet size={16} /> Upload</button>
+                    <button disabled={actionLocks.bulkUpload} onClick={() => fileInputRef.current.click()} className="flex-1 sm:flex-none justify-center px-4 py-2.5 border-2 border-yellow-100 rounded-xl text-sm font-bold flex items-center gap-2 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed"><FileSpreadsheet size={16} /> {actionLocks.bulkUpload ? 'Uploading...' : 'Upload'}</button>
                     <button className="flex-1 sm:flex-none justify-center px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all" onClick={() => setIsModalOpen(true)}><Plus size={18} /> New</button>
                   </div>
                 </div>
@@ -499,7 +546,7 @@ const CoordinatorDashboard = () => {
                         <td className="p-4 pr-6 md:pr-8 text-center align-top"><div className="flex justify-center gap-2">
                             <button onClick={() => handleWhatsAppShare(f)} className="p-1.5 border border-green-200 rounded text-green-500 hover:bg-green-50"><MessageSquare size={16} /></button>
                             <button onClick={() => handleSendEmail(f)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-blue-600"><Mail size={16} /></button>
-                            <button onClick={() => handleDelete(f._id)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
+                            <button disabled={actionLocks.deletingFacultyId === f._id || !!actionLocks.deletingFacultyId} onClick={() => handleDelete(f._id)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={16} /></button>
                           </div></td>
                       </tr>
                     )})}
@@ -553,8 +600,8 @@ const CoordinatorDashboard = () => {
                     <div className="flex items-center gap-2 w-full sm:w-auto"><span className="text-[10px] font-bold text-gray-400 uppercase">To:</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs p-2 border rounded-lg text-gray-600" /></div>
                  </div>
                  <div className="flex flex-row gap-2 w-full lg:w-auto">
-                    <button onClick={handleExportReportsCSV} className="flex-1 lg:flex-none justify-center px-4 py-2 border-2 border-gray-100 rounded-lg text-xs font-bold flex items-center gap-1.5 text-gray-600 hover:bg-gray-50"><Download size={16} /> Excel</button>
-                    <button onClick={generatePDFInvoice} className="flex-1 lg:flex-none justify-center px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-700 shadow-lg"><FileText size={16} /> PDF Bill</button>
+                    <button disabled={actionLocks.exportOrders} onClick={handleExportReportsCSV} className="flex-1 lg:flex-none justify-center px-4 py-2 border-2 border-gray-100 rounded-lg text-xs font-bold flex items-center gap-1.5 text-gray-600 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"><Download size={16} /> {actionLocks.exportOrders ? 'Generating...' : 'Excel'}</button>
+                    <button disabled={actionLocks.exportPdf} onClick={generatePDFInvoice} className="flex-1 lg:flex-none justify-center px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-700 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"><FileText size={16} /> {actionLocks.exportPdf ? 'Generating...' : 'PDF Bill'}</button>
                  </div>
               </div>
             </header>
@@ -625,7 +672,7 @@ const CoordinatorDashboard = () => {
                 <div className="flex-1"><label className="block text-[10px] font-bold text-gray-400 mb-1">Valid From</label><input required type="date" value={formData.validFrom} onChange={(e) => setFormData({...formData, validFrom: e.target.value})} className="w-full p-2 border rounded-lg text-sm" /></div>
                 <div className="flex-1"><label className="block text-[10px] font-bold text-gray-400 mb-1">Valid Till</label><input required type="date" value={formData.validTill} onChange={(e) => setFormData({...formData, validTill: e.target.value})} className="w-full p-2 border rounded-lg text-sm" /></div>
               </div>
-              <button type="submit" className="w-full bg-blue-600 text-white font-bold p-3 rounded-lg mt-4 hover:bg-blue-700">Generate Voucher</button>
+              <button type="submit" disabled={actionLocks.addFaculty} className="w-full bg-blue-600 text-white font-bold p-3 rounded-lg mt-4 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed">{actionLocks.addFaculty ? 'Generating...' : 'Generate Voucher'}</button>
             </form>
           </div>
         </div>
@@ -642,7 +689,7 @@ const CoordinatorDashboard = () => {
                 <div className="flex-1"><label className="block text-[10px] font-bold text-gray-400 mb-1">Valid From</label><input required type="date" value={guestFormData.validFrom} onChange={(e) => setGuestFormData({...guestFormData, validFrom: e.target.value})} className="w-full p-2 border rounded-lg text-sm" /></div>
                 <div className="flex-1"><label className="block text-[10px] font-bold text-gray-400 mb-1">Valid Till</label><input required type="date" value={guestFormData.validTill} onChange={(e) => setGuestFormData({...guestFormData, validTill: e.target.value})} className="w-full p-2 border rounded-lg text-sm" /></div>
               </div>
-              <button type="submit" className="w-full bg-purple-600 text-white font-bold p-3 rounded-lg mt-4 hover:bg-purple-700">Issue Guest Code</button>
+              <button type="submit" disabled={actionLocks.addGuest} className="w-full bg-purple-600 text-white font-bold p-3 rounded-lg mt-4 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed">{actionLocks.addGuest ? 'Issuing...' : 'Issue Guest Code'}</button>
             </form>
           </div>
         </div>

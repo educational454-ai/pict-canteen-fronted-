@@ -23,7 +23,11 @@ const MenuPage = () => {
   const [myOrders, setMyOrders] = useState([]); 
   
   const [selections, setSelections] = useState({});
-  const [loading, setLoading] = useState(false);
+    const [actionLocks, setActionLocks] = useState({
+            checkout: false,
+            addGuest: false,
+            feedback: false
+    });
   const [orderSuccess, setOrderSuccess] = useState(false);
   
   // 🚀 THE FIX: Store the Faculty's official limits to lock the calendar UI
@@ -132,6 +136,8 @@ const MenuPage = () => {
   }, {});
 
   const handleCheckout = async () => {
+        if (actionLocks.checkout) return;
+        if (selectedItemsList.length === 0) return;
     const exactHour = new Date().getHours();
     for (const item of selectedItemsList) {
         const schedule = categorySchedules[item.category];
@@ -141,7 +147,7 @@ const MenuPage = () => {
         }
     }
 
-    setLoading(true);
+    setActionLocks(prev => ({ ...prev, checkout: true }));
     try {
       const orderData = {
         voucherCode: selectedVoucher, 
@@ -157,11 +163,13 @@ const MenuPage = () => {
       fetchMyOrders(); 
       setTimeout(() => setOrderSuccess(false), 3000);
     } catch (err) { toast.error(err.response?.data?.error || "Order failed. You may have already ordered today."); } 
-    finally { setLoading(false); }
+        finally { setActionLocks(prev => ({ ...prev, checkout: false })); }
   };
 
   const handleAddGuest = async (e) => {
     e.preventDefault();
+        if (actionLocks.addGuest) return;
+        setActionLocks(prev => ({ ...prev, addGuest: true }));
     try {
         const res = await API.post('/guests/add', { ...guestFormData, facultyVoucher: voucher });
         toast.success(`Success! Hand this code to your guest: ${res.data.voucher}`); 
@@ -171,11 +179,15 @@ const MenuPage = () => {
         fetchMyGuests(); 
     } catch (err) { 
         toast.error(`Failed to add guest: ${err.response?.data?.error || err.message}`); 
-    } 
+    } finally {
+        setActionLocks(prev => ({ ...prev, addGuest: false }));
+    }
   };
 
   const handleFeedbackSubmit = async (e) => {
       e.preventDefault();
+      if (actionLocks.feedback) return;
+      setActionLocks(prev => ({ ...prev, feedback: true }));
       try {
           await API.put(`/orders/feedback/${feedbackData.orderId}`, {
               rating: feedbackData.rating,
@@ -186,6 +198,8 @@ const MenuPage = () => {
           fetchMyOrders(); 
       } catch (err) {
           toast.error("Failed to submit feedback.");
+      } finally {
+          setActionLocks(prev => ({ ...prev, feedback: false }));
       }
   };
 
@@ -247,7 +261,7 @@ const MenuPage = () => {
           {activeTab === 'menu' && (
             <div className="flex flex-col lg:flex-row gap-6 items-start">
                 
-                <div className="flex-[2] w-full">
+                <div className="flex-2 w-full">
                 {Object.keys(groupedMenu).length > 0 ? (
                     Object.entries(groupedMenu).map(([category, items]) => {
                         const schedule = categorySchedules[category];
@@ -363,8 +377,8 @@ const MenuPage = () => {
                                 <span className="uppercase tracking-wider">Total Amount</span>
                                 <span className="text-xl text-slate-800 font-black">₹{totalAmount}</span>
                             </div>
-                            <button onClick={handleCheckout} disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors active:scale-[0.98] disabled:bg-slate-300 flex justify-center items-center gap-2 text-sm shadow-sm">
-                                {loading ? "Processing..." : <>Confirm Order <ChevronRight size={16}/></>}
+                            <button onClick={handleCheckout} disabled={actionLocks.checkout} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors active:scale-[0.98] disabled:bg-slate-300 disabled:cursor-not-allowed flex justify-center items-center gap-2 text-sm shadow-sm">
+                                {actionLocks.checkout ? "Processing..." : <>Confirm Order <ChevronRight size={16}/></>}
                             </button>
                         </div>
                     )}
@@ -525,8 +539,8 @@ const MenuPage = () => {
                               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-colors resize-none"
                           ></textarea>
                       </div>
-                      <button type="submit" className="w-full bg-orange-500 text-white font-bold py-3.5 rounded-xl hover:bg-orange-600 transition-colors shadow-lg shadow-orange-200 active:scale-95">
-                          Submit Feedback
+                      <button type="submit" disabled={actionLocks.feedback} className="w-full bg-orange-500 text-white font-bold py-3.5 rounded-xl hover:bg-orange-600 transition-colors shadow-lg shadow-orange-200 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
+                          {actionLocks.feedback ? 'Submitting...' : 'Submit Feedback'}
                       </button>
                   </form>
               </div>
@@ -578,7 +592,7 @@ const MenuPage = () => {
                     />
                 </div>
               </div>
-              <button type="submit" className="w-full bg-purple-600 text-white font-medium py-3 rounded-lg mt-2 hover:bg-purple-700 transition-colors shadow-sm active:scale-[0.98] text-sm">Generate G-Code</button>
+                            <button type="submit" disabled={actionLocks.addGuest} className="w-full bg-purple-600 text-white font-medium py-3 rounded-lg mt-2 hover:bg-purple-700 transition-colors shadow-sm active:scale-[0.98] text-sm disabled:opacity-60 disabled:cursor-not-allowed">{actionLocks.addGuest ? 'Generating...' : 'Generate G-Code'}</button>
             </form>
           </div>
         </div>

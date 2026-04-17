@@ -334,11 +334,13 @@ const CoordinatorDashboard = () => {
   const handleWhatsAppShare = (member) => {
     const rawMobile = String(member.mobile).trim();
     const phoneNumber = rawMobile.startsWith('91') ? rawMobile : `91${rawMobile}`;
+    const examCategory = member.academicYear || 'N/A';
     
     const message = `*PICT EXAM PORTAL - CANTEEN VOUCHER*%0A%0A` +
                     `Dear Prof. *${member.fullName}*,%0A%0A` +
                     `You have been assigned as an examiner for the *${deptCode}* Department.%0A%0A` +
                     `*VOUCHER DETAILS:*%0A` +
+                    `• *Exam Category:* ${examCategory}%0A` +
                     `• *Access Code:* ${member.voucherCode}%0A` +
                     `• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}%0A` +
                     `• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}%0A%0A` +

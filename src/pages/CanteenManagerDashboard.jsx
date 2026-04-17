@@ -36,6 +36,25 @@ const getSocketBaseUrl = () => {
     return apiBase.replace(/\/api\/?$/, '');
 };
 
+const buildOrderSearchText = (order) => {
+    const billedTo = order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName;
+    const department = order.departmentId?.name || '';
+    const voucherCode = order.voucherCode || '';
+    const status = order.status || '';
+    const amount = typeof order.totalAmount === 'number' ? String(order.totalAmount) : '';
+    const rawDate = order.createdAt || order.orderDate;
+    const orderDateText = rawDate ? new Date(rawDate).toLocaleString('en-GB') : '';
+    const itemsText = Array.isArray(order.items)
+        ? order.items
+              .map((item) => `${item.itemName || ''} ${item.category || ''} ${item.quantity || ''}`)
+              .join(' ')
+        : '';
+
+    return [billedTo, department, voucherCode, status, amount, orderDateText, itemsText]
+        .join(' ')
+        .toLowerCase();
+};
+
 const CanteenManagerDashboard = () => {
   const navigate = useNavigate();
   
@@ -143,10 +162,13 @@ const CanteenManagerDashboard = () => {
       } catch (err) { console.error("Error fetching faculty"); }
   };
 
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
   const filteredOrders = orders.filter(order => {
-      // 🚀 NEW: Filter logic by search name
-      const orderName = (order.voucherCode?.startsWith('G-') ? order.guestName : order.facultyId?.fullName) || "";
-      if (!orderName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      // Search is intentionally broad so manager can match any order field (name, menu item, dept, voucher, etc.)
+      if (normalizedSearchTerm) {
+          const searchableText = buildOrderSearchText(order);
+          if (!searchableText.includes(normalizedSearchTerm)) return false;
+      }
 
       if (order.createdAt || order.orderDate) {
           const rawDate = new Date(order.createdAt || order.orderDate);
@@ -450,10 +472,10 @@ const CanteenManagerDashboard = () => {
                       <div className="flex flex-wrap items-end gap-4 mb-8 bg-slate-50 p-5 rounded-2xl border shadow-inner">
                           {/* 🚀 NEW: Search Bar Integration */}
                           <div className="flex-1 min-w-62.5 relative">
-                             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Search Name</label>
+                                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Search Orders</label>
                              <div className="relative">
                                 <Search className="absolute left-3 top-3 text-slate-400" size={16} />
-                                <input type="text" placeholder="Search faculty or guest..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold focus:border-blue-500 outline-none transition-all shadow-sm" />
+                                          <input type="text" placeholder="Search name, menu item, department, voucher, amount..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 p-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold focus:border-blue-500 outline-none transition-all shadow-sm" />
                              </div>
                           </div>
                           <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Department</label>

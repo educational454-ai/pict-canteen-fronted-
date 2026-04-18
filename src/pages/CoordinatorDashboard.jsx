@@ -372,14 +372,15 @@ const CoordinatorDashboard = () => {
     
     setActionLocks(prev => ({ ...prev, sendingBulkEmail: true }));
     try {
-      const recipients = filteredFaculty.map(f => f.email);
+      const recipients = filteredFaculty.map(f => ({
+        email: f.email,
+        message: buildVoucherMessage(f)
+      }));
       const subject = "PICT EXAM PORTAL - CANTEEN VOUCHER";
-      const message = filteredFaculty.map(buildVoucherMessage).join('\n\n---\n\n');
       
       const response = await API.post('/mail/send-bulk-mail', {
         recipients,
-        subject,
-        message
+        subject
       });
       
       if (response.data.success) {

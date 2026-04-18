@@ -143,18 +143,24 @@ const CoordinatorDashboard = () => {
         const actualGuestName = o.guestName || guests.find(g => g.voucherCode === o.voucherCode)?.guestName || 'Guest';
         const hostName = o.facultyId?.fullName || "Deleted User";
         return {
-
-  const buildVoucherMessage = (member) => {
-    const examCategory = member.academicYear || 'N/A';
-    return `*PICT EXAM PORTAL - CANTEEN VOUCHER*\n\nDear Prof. *${member.fullName}*,\n\nYou have been assigned as an examiner for the *${deptCode}* Department.\n\n*VOUCHER DETAILS:*\n• *Exam Category:* ${examCategory}\n• *Access Code:* ${member.voucherCode}\n• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}\n• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}\n\n*PORTAL LINK:*\nhttps://pict-canteen-fronted.vercel.app/\n\n_Please enter your access code at the portal link above to place orders._`;
-  };
           "Date": new Date(o.orderDate || o.createdAt).toLocaleDateString(),
           "Time": new Date(o.orderDate || o.createdAt).toLocaleTimeString(),
           "Billed To": isGuest ? `${actualGuestName} (Guest)` : hostName,
           "Host Faculty": isGuest ? hostName : "N/A",
-
-    const message = encodeURIComponent(buildVoucherMessage(member));
+          "Year Scope": o.facultyId?.academicYear || "N/A",
+          "Voucher Code": o.voucherCode || "N/A",
+          "Items Ordered": o.items.map(i => `${i.itemName} (x${i.quantity})`).join(', '),
+          "Amount (₹)": o.totalAmount
+        };
+      });
+    } finally {
+      setActionLocks(prev => ({ ...prev, exportOrders: false }));
     }
+  };
+
+  const buildVoucherMessage = (member) => {
+    const examCategory = member.academicYear || 'N/A';
+    return `*PICT EXAM PORTAL - CANTEEN VOUCHER*\n\nDear Prof. *${member.fullName}*,\n\nYou have been assigned as an examiner for the *${deptCode}* Department.\n\n*VOUCHER DETAILS:*\n• *Exam Category:* ${examCategory}\n• *Access Code:* ${member.voucherCode}\n• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}\n• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}\n\n*PORTAL LINK:*\nhttps://pict-canteen-fronted.vercel.app/\n\n_Please enter your access code at the portal link above to place orders._`;
   };
 
   const generatePDFInvoice = () => {
@@ -164,8 +170,6 @@ const CoordinatorDashboard = () => {
     const img = new Image();
     img.src = '/image1.jpeg'; 
     img.onload = () => {
-      const subject = "PICT EXAM PORTAL - CANTEEN VOUCHER";
-      const message = buildVoucherMessage(member);
       doc.setGState(new doc.GState({ opacity: 1.0 })); 
       doc.addImage(img, 'JPEG', 14, 10, 22, 22);
       doc.setFontSize(16);
@@ -330,19 +334,7 @@ const CoordinatorDashboard = () => {
   const handleWhatsAppShare = (member) => {
     const rawMobile = String(member.mobile).trim();
     const phoneNumber = rawMobile.startsWith('91') ? rawMobile : `91${rawMobile}`;
-    const examCategory = member.academicYear || 'N/A';
-    
-    const message = `*PICT EXAM PORTAL - CANTEEN VOUCHER*%0A%0A` +
-                    `Dear Prof. *${member.fullName}*,%0A%0A` +
-                    `You have been assigned as an examiner for the *${deptCode}* Department.%0A%0A` +
-                    `*VOUCHER DETAILS:*%0A` +
-                    `• *Exam Category:* ${examCategory}%0A` +
-                    `• *Access Code:* ${member.voucherCode}%0A` +
-                    `• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}%0A` +
-                    `• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}%0A%0A` +
-                    `*PORTAL LINK:*%0A` +
-                    `https://pict-canteen-fronted.vercel.app/%0A%0A` +
-                    `_Please enter your access code at the portal link above to place orders._`;
+    const message = encodeURIComponent(buildVoucherMessage(member));
 
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
     window.open(whatsappUrl, '_blank');
@@ -353,8 +345,8 @@ const CoordinatorDashboard = () => {
     
     setActionLocks(prev => ({ ...prev, sendingEmailId: member._id }));
     try {
-      const subject = "Your PICT Canteen Examination Voucher";
-      const message = `Dear Prof. ${member.fullName},\n\nYOUR SECURE ACCESS CODE: ${member.voucherCode}\nVALIDITY PERIOD: ${new Date(member.validFrom).toLocaleDateString('en-GB')} to ${new Date(member.validTill).toLocaleDateString('en-GB')}\n\n✓ Use this code to access the canteen during examinations.\n✓ Your access is valid for the specified period only.\n✓ Keep this code confidential.\n\nBest Regards,\n${deptCode} Department Coordinator\nPICT Canteen Management System`;
+      const subject = "PICT EXAM PORTAL - CANTEEN VOUCHER";
+      const message = buildVoucherMessage(member);
       
       const response = await API.post('/mail/send-mail', {
         to: member.email,
@@ -381,8 +373,8 @@ const CoordinatorDashboard = () => {
     setActionLocks(prev => ({ ...prev, sendingBulkEmail: true }));
     try {
       const recipients = filteredFaculty.map(f => f.email);
-      const subject = "Your PICT Canteen Examination Voucher";
-      const message = `Dear Examiners,\n\nThis is to remind you of your access codes for the upcoming examinations.\n\n✓ Your personalized codes have been configured in the system.\n✓ Access is valid as per your assigned periods.\n✓ Please keep your code confidential.\n\nFor individual codes, check your recent emails or contact your department coordinator.\n\nBest Regards,\n${deptCode} Department Coordinator\nPICT Canteen Management System`;
+      const subject = "PICT EXAM PORTAL - CANTEEN VOUCHER";
+      const message = filteredFaculty.map(buildVoucherMessage).join('\n\n---\n\n');
       
       const response = await API.post('/mail/send-bulk-mail', {
         recipients,

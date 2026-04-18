@@ -62,7 +62,9 @@ const CoordinatorDashboard = () => {
     addGuest: false,
     exportOrders: false,
     exportPdf: false,
-    deletingFacultyId: null
+    deletingFacultyId: null,
+    sendingEmailId: null,
+    sendingBulkEmail: false
   });
 
   useEffect(() => { sessionStorage.setItem('activeCoordinatorTab', activeTab); }, [activeTab]);
@@ -141,23 +143,17 @@ const CoordinatorDashboard = () => {
         const actualGuestName = o.guestName || guests.find(g => g.voucherCode === o.voucherCode)?.guestName || 'Guest';
         const hostName = o.facultyId?.fullName || "Deleted User";
         return {
+
+  const buildVoucherMessage = (member) => {
+    const examCategory = member.academicYear || 'N/A';
+    return `*PICT EXAM PORTAL - CANTEEN VOUCHER*\n\nDear Prof. *${member.fullName}*,\n\nYou have been assigned as an examiner for the *${deptCode}* Department.\n\n*VOUCHER DETAILS:*\n• *Exam Category:* ${examCategory}\n• *Access Code:* ${member.voucherCode}\n• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}\n• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}\n\n*PORTAL LINK:*\nhttps://pict-canteen-fronted.vercel.app/\n\n_Please enter your access code at the portal link above to place orders._`;
+  };
           "Date": new Date(o.orderDate || o.createdAt).toLocaleDateString(),
           "Time": new Date(o.orderDate || o.createdAt).toLocaleTimeString(),
           "Billed To": isGuest ? `${actualGuestName} (Guest)` : hostName,
           "Host Faculty": isGuest ? hostName : "N/A",
-          "Year Scope": o.facultyId?.academicYear || "N/A",
-          "Voucher Code": o.voucherCode || "N/A",
-          "Items Ordered": o.items.map(i => `${i.itemName} (x${i.quantity})`).join(', '),
-          "Amount (₹)": o.totalAmount
-        };
-      });
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
-      XLSX.writeFile(workbook, `${deptCode}_Usage_${reportYearFilter || 'All_Years'}.xlsx`);
-      toast.success("Orders CSV Downloaded!");
-    } finally {
-      setActionLocks(prev => ({ ...prev, exportOrders: false }));
+
+    const message = encodeURIComponent(buildVoucherMessage(member));
     }
   };
 
@@ -168,8 +164,8 @@ const CoordinatorDashboard = () => {
     const img = new Image();
     img.src = '/image1.jpeg'; 
     img.onload = () => {
-      doc.setGState(new doc.GState({ opacity: 0.15 }));
-      doc.addImage(img, 'JPEG', 35, 70, 140, 140);
+      const subject = "PICT EXAM PORTAL - CANTEEN VOUCHER";
+      const message = buildVoucherMessage(member);
       doc.setGState(new doc.GState({ opacity: 1.0 })); 
       doc.addImage(img, 'JPEG', 14, 10, 22, 22);
       doc.setFontSize(16);
@@ -352,10 +348,59 @@ const CoordinatorDashboard = () => {
     window.open(whatsappUrl, '_blank');
   };
 
-  const handleSendEmail = (member) => {
-    const subject = encodeURIComponent("Confidential: Your PICT Canteen Examination Voucher");
-    const body = encodeURIComponent(`Dear Prof. ${member.fullName},\n\nYOUR SECURE ACCESS CODE: ${member.voucherCode}\nVALIDITY PERIOD ENDS: ${new Date(member.validTill).toLocaleDateString()}\n\nBest Regards,\n${deptCode} Department Coordinator`);
-    window.location.href = `mailto:${member.email}?subject=${subject}&body=${body}`;
+  const handleSendEmail = async (member) => {
+    if (actionLocks.sendingEmailId) return; // Prevent multiple sends
+    
+    setActionLocks(prev => ({ ...prev, sendingEmailId: member._id }));
+    try {
+      const subject = "Your PICT Canteen Examination Voucher";
+      const message = `Dear Prof. ${member.fullName},\n\nYOUR SECURE ACCESS CODE: ${member.voucherCode}\nVALIDITY PERIOD: ${new Date(member.validFrom).toLocaleDateString('en-GB')} to ${new Date(member.validTill).toLocaleDateString('en-GB')}\n\n✓ Use this code to access the canteen during examinations.\n✓ Your access is valid for the specified period only.\n✓ Keep this code confidential.\n\nBest Regards,\n${deptCode} Department Coordinator\nPICT Canteen Management System`;
+      
+      const response = await API.post('/mail/send-mail', {
+        to: member.email,
+        subject,
+        message
+      });
+      
+      if (response.data.success) {
+        toast.success(`Email sent to ${member.fullName}!`);
+      } else {
+        toast.error("Failed to send email. Please try again.");
+      }
+    } catch (err) {
+      console.error("Email send error:", err);
+      toast.error(`Error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setActionLocks(prev => ({ ...prev, sendingEmailId: null }));
+    }
+  };
+
+  const handleSendBulkEmail = async () => {
+    if (actionLocks.sendingBulkEmail || filteredFaculty.length === 0) return;
+    
+    setActionLocks(prev => ({ ...prev, sendingBulkEmail: true }));
+    try {
+      const recipients = filteredFaculty.map(f => f.email);
+      const subject = "Your PICT Canteen Examination Voucher";
+      const message = `Dear Examiners,\n\nThis is to remind you of your access codes for the upcoming examinations.\n\n✓ Your personalized codes have been configured in the system.\n✓ Access is valid as per your assigned periods.\n✓ Please keep your code confidential.\n\nFor individual codes, check your recent emails or contact your department coordinator.\n\nBest Regards,\n${deptCode} Department Coordinator\nPICT Canteen Management System`;
+      
+      const response = await API.post('/mail/send-bulk-mail', {
+        recipients,
+        subject,
+        message
+      });
+      
+      if (response.data.success) {
+        toast.success(`✓ Bulk email sent! (${response.data.results.sent} sent, ${response.data.results.failed} failed)`);
+      } else {
+        toast.error("Failed to send bulk emails.");
+      }
+    } catch (err) {
+      console.error("Bulk email error:", err);
+      toast.error(`Error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setActionLocks(prev => ({ ...prev, sendingBulkEmail: false }));
+    }
   };
 
   const handleAddSingle = async (e) => {
@@ -505,12 +550,13 @@ const CoordinatorDashboard = () => {
                   <div className="flex gap-2 w-full sm:w-auto">
                     <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
                     <button disabled={actionLocks.bulkUpload} onClick={() => fileInputRef.current.click()} className="flex-1 sm:flex-none justify-center px-4 py-2.5 border-2 border-yellow-100 rounded-xl text-sm font-bold flex items-center gap-2 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed"><FileSpreadsheet size={16} /> {actionLocks.bulkUpload ? 'Uploading...' : 'Upload'}</button>
+                    <button disabled={actionLocks.sendingBulkEmail || filteredFaculty.length === 0} onClick={handleSendBulkEmail} className="flex-1 sm:flex-none justify-center px-4 py-2.5 border-2 border-purple-100 rounded-xl text-sm font-bold flex items-center gap-2 text-purple-700 bg-purple-50 hover:bg-purple-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed"><Mail size={16} /> {actionLocks.sendingBulkEmail ? 'Sending...' : 'Email All'}</button>
                     <button className="flex-1 sm:flex-none justify-center px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all" onClick={() => setIsModalOpen(true)}><Plus size={18} /> New</button>
                   </div>
                 </div>
               </div>
               <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-y-auto overflow-x-auto relative">
-                <table className="w-full text-left border-collapse min-w-[850px]">
+                <table className="w-full text-left border-collapse min-w-212.5">
                   <thead className="bg-white/95 backdrop-blur-sm border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase sticky top-0 z-10 shadow-sm">
                     <tr><th className="p-4 pl-6 md:pl-8">Faculty Details</th><th className="p-4">Assigned Subjects</th><th className="p-4 text-center">Year Scope</th><th className="p-4 text-center">Access Code</th><th className="p-4 text-center">Validity Period</th><th className="p-4 text-center pr-6 md:pr-8">Actions</th></tr>
                   </thead>
@@ -529,7 +575,7 @@ const CoordinatorDashboard = () => {
                           </div>
                           <p className="text-[11px] text-gray-400 font-medium">{f.email} • {f.mobile}</p>
                         </td>
-                        <td className="p-4 align-top max-w-[200px]">
+                        <td className="p-4 align-top max-w-50">
                           {f.assignedSubjects && f.assignedSubjects.length > 0 ? (
                               <div className="flex flex-col gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
                                   {f.assignedSubjects.map((sub, idx) => {
@@ -547,7 +593,7 @@ const CoordinatorDashboard = () => {
                         </td>
                         <td className="p-4 pr-6 md:pr-8 text-center align-top"><div className="flex justify-center gap-2">
                             <button onClick={() => handleWhatsAppShare(f)} className="p-1.5 border border-green-200 rounded text-green-500 hover:bg-green-50"><MessageSquare size={16} /></button>
-                            <button onClick={() => handleSendEmail(f)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-blue-600"><Mail size={16} /></button>
+                            <button disabled={actionLocks.sendingEmailId === f._id} onClick={() => handleSendEmail(f)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-blue-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all" title="Send Email"><Mail size={16} /> {actionLocks.sendingEmailId === f._id && <span className="animate-spin">⏳</span>}</button>
                             <button disabled={actionLocks.deletingFacultyId === f._id || !!actionLocks.deletingFacultyId} onClick={() => handleDelete(f._id)} className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={16} /></button>
                           </div></td>
                       </tr>
@@ -627,7 +673,7 @@ const CoordinatorDashboard = () => {
               </div>
 
               <div className="bg-white rounded-2xl border shadow-sm flex-1 overflow-x-auto relative">
-                <table className="w-full text-left border-collapse min-w-[700px]">
+                <table className="w-full text-left border-collapse min-w-175">
                   <thead className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase sticky top-0 z-10 border-b">
                     <tr><th className="p-4 pl-8">Date & Time</th><th className="p-4">Billed To</th><th className="p-4 text-center">Year</th><th className="p-4 text-center">Voucher</th><th className="p-4 text-right pr-8">Total</th></tr>
                   </thead>

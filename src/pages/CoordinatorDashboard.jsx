@@ -163,6 +163,11 @@ const CoordinatorDashboard = () => {
     return `*PICT EXAM PORTAL - CANTEEN VOUCHER*\n\nDear Prof. *${member.fullName}*,\n\nYou have been assigned as an examiner for the *${deptCode}* Department.\n\n*VOUCHER DETAILS:*\n• *Exam Category:* ${examCategory}\n• *Access Code:* ${member.voucherCode}\n• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}\n• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}\n\n*PORTAL LINK:*\nhttps://pict-canteen-fronted.vercel.app/\n\n_Please enter your access code at the portal link above to place orders._`;
   };
 
+  const buildEmailVoucherMessage = (member) => {
+    const examCategory = member.academicYear || 'N/A';
+    return `PICT EXAM PORTAL - CANTEEN VOUCHER\n\nDear Prof. ${member.fullName},\n\nYou have been assigned as an examiner for the ${deptCode} Department.\n\nVOUCHER DETAILS:\n• Exam Category: ${examCategory}\n• Access Code: ${member.voucherCode}\n• Valid From: ${new Date(member.validFrom).toLocaleDateString('en-GB')}\n• Valid Until: ${new Date(member.validTill).toLocaleDateString('en-GB')}\n\nPORTAL LINK:\nhttps://pict-canteen-fronted.vercel.app/\n\nPlease enter your access code at the portal link above to place orders.`;
+  };
+
   const generatePDFInvoice = () => {
     if (actionLocks.exportPdf) return;
     setActionLocks(prev => ({ ...prev, exportPdf: true }));
@@ -346,7 +351,7 @@ const CoordinatorDashboard = () => {
     setActionLocks(prev => ({ ...prev, sendingEmailId: member._id }));
     try {
       const subject = "PICT EXAM PORTAL - CANTEEN VOUCHER";
-      const message = buildVoucherMessage(member);
+      const message = buildEmailVoucherMessage(member);
       
       const response = await API.post('/mail/send-mail', {
         to: member.email,
@@ -377,7 +382,7 @@ const CoordinatorDashboard = () => {
     try {
       const recipients = filteredFaculty.map(f => ({
         email: f.email,
-        message: buildVoucherMessage(f)
+        message: buildEmailVoucherMessage(f)
       }));
       const subject = "PICT EXAM PORTAL - CANTEEN VOUCHER";
       

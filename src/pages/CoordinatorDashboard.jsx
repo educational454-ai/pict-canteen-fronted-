@@ -369,6 +369,9 @@ const CoordinatorDashboard = () => {
 
   const handleSendBulkEmail = async () => {
     if (actionLocks.sendingBulkEmail || filteredFaculty.length === 0) return;
+
+    const isConfirmed = window.confirm(`Send voucher emails to ${filteredFaculty.length} faculty members now?`);
+    if (!isConfirmed) return;
     
     setActionLocks(prev => ({ ...prev, sendingBulkEmail: true }));
     try {

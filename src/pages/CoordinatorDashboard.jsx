@@ -195,6 +195,9 @@ const CoordinatorDashboard = () => {
     const img = new Image();
     img.src = '/image1.jpeg'; 
     img.onload = () => {
+      // Add a faint center watermark like the manager report.
+      doc.setGState(new doc.GState({ opacity: 0.15 }));
+      doc.addImage(img, 'JPEG', 35, 70, 140, 140);
       doc.setGState(new doc.GState({ opacity: 1.0 })); 
       doc.addImage(img, 'JPEG', 14, 10, 22, 22);
       doc.setFontSize(16);

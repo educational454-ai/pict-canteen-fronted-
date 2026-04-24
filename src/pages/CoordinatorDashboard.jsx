@@ -14,6 +14,16 @@ const formatExcelDateSafely = (excelDate) => {
   return d.toISOString().split('T')[0];
 };
 
+const getUniqueOrdersById = (orderList) => {
+  const uniqueMap = new Map();
+  orderList.forEach((order) => {
+    if (order?._id && !uniqueMap.has(order._id)) {
+      uniqueMap.set(order._id, order);
+    }
+  });
+  return Array.from(uniqueMap.values());
+};
+
 const CoordinatorDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem('activeCoordinatorTab') || 'faculty');
@@ -100,12 +110,16 @@ const CoordinatorDashboard = () => {
     return true;
   });
 
-  const totalSpent = filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-  const totalOrders = filteredOrders.length;
+  const reportOrders = getUniqueOrdersById(
+    filteredOrders.filter((order) => order.status === 'Completed')
+  );
+
+  const totalSpent = reportOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+  const totalOrders = reportOrders.length;
 
   // 🚀 NEW COORDINATOR ANALYTICS 1: Year-wise spending breakdown
   const yearWiseStats = availableYears.map(year => {
-    const total = filteredOrders.filter(o => o.facultyId?.academicYear === year).reduce((sum, o) => sum + o.totalAmount, 0);
+    const total = reportOrders.filter(o => o.facultyId?.academicYear === year).reduce((sum, o) => sum + o.totalAmount, 0);
     return { year, total };
   }).filter(s => s.total > 0);
 
@@ -138,7 +152,7 @@ const CoordinatorDashboard = () => {
     if (actionLocks.exportOrders) return;
     setActionLocks(prev => ({ ...prev, exportOrders: true }));
     try {
-      const exportData = filteredOrders.map(o => {
+      const exportData = reportOrders.map(o => {
         const isGuest = o.voucherCode?.startsWith('G-');
         const actualGuestName = o.guestName || guests.find(g => g.voucherCode === o.voucherCode)?.guestName || 'Guest';
         const hostName = o.facultyId?.fullName || "Deleted User";
@@ -153,6 +167,12 @@ const CoordinatorDashboard = () => {
           "Amount (₹)": o.totalAmount
         };
       });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Billing Report");
+      XLSX.writeFile(workbook, `${deptCode}_Billing_Report_${reportYearFilter || 'All'}.xlsx`);
+      toast.success("Excel Report Downloaded!");
     } finally {
       setActionLocks(prev => ({ ...prev, exportOrders: false }));
     }
@@ -198,8 +218,8 @@ const CoordinatorDashboard = () => {
       const yearText = reportYearFilter ? `(${reportYearFilter.toUpperCase()})` : "ALL YEARS";
       doc.text(`Department: ${deptCode} DEPARTMENT ${yearText}`, 14, 58);
 
-      const facultyOrders = filteredOrders.filter(o => !o.voucherCode?.startsWith('G-'));
-      const guestOrders = filteredOrders.filter(o => o.voucherCode?.startsWith('G-'));
+      const facultyOrders = reportOrders.filter(o => !o.voucherCode?.startsWith('G-'));
+      const guestOrders = reportOrders.filter(o => o.voucherCode?.startsWith('G-'));
 
       const facultyTotals = {};
       facultyOrders.forEach(order => {
@@ -679,8 +699,8 @@ const CoordinatorDashboard = () => {
                     <tr><th className="p-4 pl-8">Date & Time</th><th className="p-4">Billed To</th><th className="p-4 text-center">Year</th><th className="p-4 text-center">Voucher</th><th className="p-4 text-right pr-8">Total</th></tr>
                   </thead>
                   <tbody className="divide-y text-sm">
-                    {filteredOrders.length === 0 ? <tr><td colSpan="5" className="text-center p-12 text-gray-400">No logs found.</td></tr> :
-                      filteredOrders.map((order) => {
+                    {reportOrders.length === 0 ? <tr><td colSpan="5" className="text-center p-12 text-gray-400">No logs found.</td></tr> :
+                      reportOrders.map((order) => {
                         const isGuest = order.voucherCode?.startsWith('G-');
                         return (
                           <tr key={order._id} className="hover:bg-gray-50/50">

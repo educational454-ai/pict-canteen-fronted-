@@ -473,7 +473,7 @@ const MenuPage = () => {
           )}
 
           {/* TAB 3: PAST ORDERS & FEEDBACK */}
-             {activeTab === 'history' && (userRole === 'FACULTY' || userRole === 'GUEST') && (
+          {activeTab === 'history' && (userRole === 'FACULTY' || userRole === 'GUEST') && (
              <div className="flex flex-col gap-4 w-full">
                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                     <h2 className="text-lg font-bold text-slate-800">Order History & Feedback</h2>
@@ -482,15 +482,6 @@ const MenuPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {myOrders.length === 0 ? (
-                                    {order.status !== 'Completed' && (
-                                        <button
-                                            disabled={actionLocks.cancelingOrderId === order._id || !!actionLocks.cancelingOrderId}
-                                            onClick={() => handleCancelOrder(order._id)}
-                                            className="w-full mb-2 py-2 bg-red-100 text-red-700 hover:bg-red-200 hover:text-red-800 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                                        >
-                                            <Trash2 size={16} /> {actionLocks.cancelingOrderId === order._id ? 'Canceling...' : 'Cancel Order'}
-                                        </button>
-                                    )}
                         <div className="col-span-1 md:col-span-2 bg-white p-8 rounded-xl border border-dashed border-slate-300 text-center text-slate-500 text-sm font-medium">No past orders found.</div>
                     ) : (
                         myOrders.map(order => {
@@ -499,12 +490,11 @@ const MenuPage = () => {
                             return (
                             <div key={order._id} className={`bg-white p-5 rounded-xl border-2 shadow-sm flex flex-col justify-between transition-colors ${isGuestOrder ? 'border-purple-100 hover:border-purple-300' : 'border-slate-100 hover:border-orange-300'}`}>
                                 <div>
-                                            disabled={order.status !== 'Completed'}
                                     <div className="flex justify-between items-start mb-3 border-b border-slate-100 pb-3">
-                                            className="w-full py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 hover:text-orange-800 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(order.createdAt).toLocaleDateString('en-GB')}</p>
-                                            <Star size={16} /> {order.status === 'Completed' ? 'Leave Feedback' : 'Feedback After Completion'}
-                                            
+                                            <p className="font-bold text-slate-800 mt-0.5">₹{order.totalAmount}</p>
+
                                             {isGuestOrder && (
                                                 <div className="mt-2 inline-flex items-center gap-1.5 bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-1 rounded border border-purple-100">
                                                     <Ticket size={12}/> Guest: {order.guestName || order.voucherCode}
@@ -519,8 +509,18 @@ const MenuPage = () => {
                                         ))}
                                     </ul>
                                 </div>
-                                
+
                                 <div className="mt-auto pt-3 border-t border-slate-100">
+                                    {order.status !== 'Completed' && (
+                                        <button
+                                            disabled={actionLocks.cancelingOrderId === order._id || !!actionLocks.cancelingOrderId}
+                                            onClick={() => handleCancelOrder(order._id)}
+                                            className="w-full mb-2 py-2 bg-red-100 text-red-700 hover:bg-red-200 hover:text-red-800 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        >
+                                            <Trash2 size={16} /> {actionLocks.cancelingOrderId === order._id ? 'Canceling...' : 'Cancel Order'}
+                                        </button>
+                                    )}
+
                                     {order.rating ? (
                                         <div className="bg-orange-50 border border-orange-100 rounded-lg p-3">
                                             <div className="flex text-orange-400 mb-1">
@@ -529,11 +529,12 @@ const MenuPage = () => {
                                             {order.feedbackText && <p className="text-xs text-orange-800 font-medium italic">"{order.feedbackText}"</p>}
                                         </div>
                                     ) : (
-                                        <button 
+                                        <button
+                                            disabled={order.status !== 'Completed'}
                                             onClick={() => { setFeedbackData({ orderId: order._id, rating: 5, text: '' }); setIsFeedbackModalOpen(true); }}
-                                            className="w-full py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 hover:text-orange-800 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                                            className="w-full py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 hover:text-orange-800 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
-                                            <Star size={16} /> Leave Feedback
+                                            <Star size={16} /> {order.status === 'Completed' ? 'Leave Feedback' : 'Feedback After Completion'}
                                         </button>
                                     )}
                                 </div>

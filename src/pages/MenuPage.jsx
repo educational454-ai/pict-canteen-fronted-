@@ -26,7 +26,8 @@ const MenuPage = () => {
     const [actionLocks, setActionLocks] = useState({
             checkout: false,
             addGuest: false,
-            feedback: false
+            feedback: false,
+            cancelingOrderId: null
     });
   const [orderSuccess, setOrderSuccess] = useState(false);
   
@@ -66,12 +67,18 @@ const MenuPage = () => {
     };
 
     fetchMenu();
+    fetchMyOrders();
     if (userRole === 'FACULTY') {
         fetchMyGuests();
-        fetchMyOrders(); 
         fetchFacultyLimits(); // 🚀 Fetch limits on load
     }
   }, [voucher, userRole, navigate]);
+
+  useEffect(() => {
+      if (userRole !== 'FACULTY' && activeTab === 'guests') {
+          setActiveTab('menu');
+      }
+  }, [userRole, activeTab]);
 
   // 🚀 THE FIX: Fetch limits and initialize the guest form to match
   const fetchFacultyLimits = async () => {
@@ -203,6 +210,24 @@ const MenuPage = () => {
       }
   };
 
+  const handleCancelOrder = async (orderId) => {
+      if (actionLocks.cancelingOrderId) return;
+
+      const isConfirmed = window.confirm('Cancel this order? You can place another order in the same category after canceling.');
+      if (!isConfirmed) return;
+
+      setActionLocks(prev => ({ ...prev, cancelingOrderId: orderId }));
+      try {
+          await API.delete(`/orders/cancel/${orderId}`, { data: { voucherCode: voucher } });
+          toast.success('Order canceled successfully. You can reorder now.');
+          fetchMyOrders();
+      } catch (err) {
+          toast.error(err.response?.data?.error || 'Failed to cancel order.');
+      } finally {
+          setActionLocks(prev => ({ ...prev, cancelingOrderId: null }));
+      }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-800">
       
@@ -238,15 +263,17 @@ const MenuPage = () => {
       </header>
 
       {/* TABS */}
-      {userRole === 'FACULTY' && (
+      {(userRole === 'FACULTY' || userRole === 'GUEST') && (
         <div className="bg-white border-b border-slate-200 shadow-sm shrink-0">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-6 overflow-x-auto no-scrollbar">
                 <button onClick={() => setActiveTab('menu')} className={`whitespace-nowrap py-3 px-1 font-semibold text-sm border-b-2 flex items-center gap-2 transition-colors ${activeTab === 'menu' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                     <UtensilsCrossed size={16} /> Canteen Menu
                 </button>
-                <button onClick={() => setActiveTab('guests')} className={`whitespace-nowrap py-3 px-1 font-semibold text-sm border-b-2 flex items-center gap-2 transition-colors ${activeTab === 'guests' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-                    <Ticket size={16} /> My Guest Passes
-                </button>
+                {userRole === 'FACULTY' && (
+                    <button onClick={() => setActiveTab('guests')} className={`whitespace-nowrap py-3 px-1 font-semibold text-sm border-b-2 flex items-center gap-2 transition-colors ${activeTab === 'guests' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+                        <Ticket size={16} /> My Guest Passes
+                    </button>
+                )}
                 <button onClick={() => setActiveTab('history')} className={`whitespace-nowrap py-3 px-1 font-semibold text-sm border-b-2 flex items-center gap-2 transition-colors ${activeTab === 'history' ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                     <History size={16} /> Past Orders & Reviews
                 </button>
@@ -446,7 +473,7 @@ const MenuPage = () => {
           )}
 
           {/* TAB 3: PAST ORDERS & FEEDBACK */}
-          {activeTab === 'history' && userRole === 'FACULTY' && (
+             {activeTab === 'history' && (userRole === 'FACULTY' || userRole === 'GUEST') && (
              <div className="flex flex-col gap-4 w-full">
                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                     <h2 className="text-lg font-bold text-slate-800">Order History & Feedback</h2>
@@ -455,6 +482,15 @@ const MenuPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {myOrders.length === 0 ? (
+                                    {order.status !== 'Completed' && (
+                                        <button
+                                            disabled={actionLocks.cancelingOrderId === order._id || !!actionLocks.cancelingOrderId}
+                                            onClick={() => handleCancelOrder(order._id)}
+                                            className="w-full mb-2 py-2 bg-red-100 text-red-700 hover:bg-red-200 hover:text-red-800 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        >
+                                            <Trash2 size={16} /> {actionLocks.cancelingOrderId === order._id ? 'Canceling...' : 'Cancel Order'}
+                                        </button>
+                                    )}
                         <div className="col-span-1 md:col-span-2 bg-white p-8 rounded-xl border border-dashed border-slate-300 text-center text-slate-500 text-sm font-medium">No past orders found.</div>
                     ) : (
                         myOrders.map(order => {
@@ -463,10 +499,11 @@ const MenuPage = () => {
                             return (
                             <div key={order._id} className={`bg-white p-5 rounded-xl border-2 shadow-sm flex flex-col justify-between transition-colors ${isGuestOrder ? 'border-purple-100 hover:border-purple-300' : 'border-slate-100 hover:border-orange-300'}`}>
                                 <div>
+                                            disabled={order.status !== 'Completed'}
                                     <div className="flex justify-between items-start mb-3 border-b border-slate-100 pb-3">
-                                        <div>
+                                            className="w-full py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 hover:text-orange-800 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(order.createdAt).toLocaleDateString('en-GB')}</p>
-                                            <p className="font-bold text-slate-800 mt-0.5">₹{order.totalAmount}</p>
+                                            <Star size={16} /> {order.status === 'Completed' ? 'Leave Feedback' : 'Feedback After Completion'}
                                             
                                             {isGuestOrder && (
                                                 <div className="mt-2 inline-flex items-center gap-1.5 bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-1 rounded border border-purple-100">

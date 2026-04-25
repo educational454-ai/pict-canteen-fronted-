@@ -461,24 +461,28 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Get the logged-in coordinator's department name
-    // Example: "COMPUTER" or "IT"
-    const loggedInDept = (sessionStorage.getItem('deptName') || "").toUpperCase(); 
+    // Get your department (e.g., "COMPUTER", "IT", "ELECTRONICS")
+    // We'll use this to search inside the "Pattern Name"
+    const loggedInDept = (sessionStorage.getItem('deptName') || "").toUpperCase();
+    
+    // Quick keyword mapping (if session says "Computer Engineering", we search "COMPUTER")
+    const searchKeyword = loggedInDept.split(' ')[0]; 
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading("Processing Excel & Filtering Departments...");
+    const loadingToast = toast.loading(`Parsing file for ${searchKeyword} department...`);
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
-            // Using a more robust way to access XLSX for Vite
-            const XLSX = await import('xlsx');
             const data = new Uint8Array(evt.target.result);
-            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-            const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            const workbook = read(data, { type: 'array', cellDates: true });
+            
+            // Standard Vite 8 access
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rawData = utils.sheet_to_json(sheet);
 
             const facultyMap = new Map();
-            let skippedCount = 0;
+            let totalProcessed = 0;
 
             rawData.forEach(row => {
                 const getVal = (searchKey) => {
@@ -486,60 +490,68 @@ const handleFileUpload = (e) => {
                     return actualKey ? String(row[actualKey]) : "";
                 };
 
-                // 🚀 DEPT FILTERING LOGIC
+                // 🚀 STEP 1: Filter by Department Keyword in "Pattern Name"
                 const patternName = getVal('Pattern Name').toUpperCase();
-                
-                // This checks if your logged-in dept (like "COMPUTER") 
-                // is mentioned anywhere in the "Pattern Name" column
-                if (!patternName.includes(loggedInDept)) {
-                    skippedCount++;
-                    return; // Skip faculty from other departments
+                if (!patternName.includes(searchKeyword)) {
+                    return; // Skip if it's NOT your department (e.g. IT guy skipping ENTC rows)
                 }
 
+                // 🚀 STEP 2: Extract Data
                 const rawName = getVal('Internal Examiner').trim();
-                if (!rawName || rawName === "" || rawName === "undefined") return;
+                if (!rawName || rawName === "undefined" || rawName === "") return;
 
                 const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
                 const mobile = getVal('Mobile No.').trim();
                 const fromDateStr = formatExcelDateSafely(getVal('From Date'));
                 const tillDateStr = formatExcelDateSafely(getVal('End Date'));
+                
+                // Determine Year from Pattern Name
+                let yearScope = "2nd Yr (Regular)";
+                if (patternName.includes("T.E.")) yearScope = "3rd Yr (Regular)";
+                if (patternName.includes("B.E.")) yearScope = "4th Yr (Regular)";
 
-                // Existing data mapping...
+                const subject = getVal('Subject Name');
+                const smartSubject = subject ? `${fromDateStr}|${tillDateStr}|${subject}` : null;
+
                 if (facultyMap.has(mobile)) {
                     const existing = facultyMap.get(mobile);
-                    const subject = getVal('Subject Name');
-                    if (subject) existing.assignedSubjects.push(`${fromDateStr}|${tillDateStr}|${subject}`);
+                    if (smartSubject && !existing.assignedSubjects.includes(smartSubject)) {
+                        existing.assignedSubjects.push(smartSubject);
+                    }
                 } else {
                     facultyMap.set(mobile, { 
                         fullName: cleanedName, 
+                        email: `${cleanedName.replace(/\s+/g, '.').toLowerCase()}@pict.edu`, 
                         mobile, 
-                        departmentId: deptId,
-                        academicYear: patternName.includes('S.E.') ? '2nd Yr (Regular)' : '3rd Yr (Regular)', // Dynamic Year check
+                        academicYear: yearScope, 
+                        departmentId: deptId, 
                         validFrom: fromDateStr, 
-                        validTill: tillDateStr,
-                        assignedSubjects: [] 
+                        validTill: tillDateStr, 
+                        assignedSubjects: smartSubject ? [smartSubject] : [] 
                     });
                 }
+                totalProcessed++;
             });
 
             const finalData = Array.from(facultyMap.values());
 
             if (finalData.length === 0) {
-                toast.error(`No matching records found for ${loggedInDept}.`, { id: loadingToast });
+                toast.error(`No examiners found matching "${searchKeyword}" in this file.`, { id: loadingToast });
                 setActionLocks(prev => ({ ...prev, bulkUpload: false }));
                 return;
             }
 
-            // Syncing with Backend
-            toast.loading(`Syncing ${finalData.length} ${loggedInDept} records...`, { id: loadingToast });
+            // Step 3: Send to Backend
+            toast.loading(`Syncing ${finalData.length} records...`, { id: loadingToast });
             const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Success! Processed ${finalData.length} records. (${skippedCount} from other depts ignored)`, { id: loadingToast });
+            toast.success(`Success! Added/Updated ${finalData.length} examiners for ${searchKeyword}.`, { id: loadingToast });
             fetchFaculty();
+            if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
-            console.error("Upload Error:", err);
-            toast.error("Failed to parse Excel. Check format.", { id: loadingToast });
+            console.error("Client Error:", err);
+            toast.error("Failed to parse Excel. Check your file headers.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }

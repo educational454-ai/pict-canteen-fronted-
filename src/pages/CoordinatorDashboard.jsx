@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket, MessageSquare, AlertTriangle, TrendingUp, UserCheck } from 'lucide-react';
-import { read, utils } from 'xlsx';
+import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API from '../api/axios';
@@ -456,10 +456,17 @@ const CoordinatorDashboard = () => {
     finally { setActionLocks(prev => ({ ...prev, addGuest: false })); }
   };
 
-const handleFileUpload = (e) => { 
+const handleFileUpload = (e) => {
     if (actionLocks.bulkUpload) return;
     const file = e.target.files[0];
     if (!file) return;
+
+    // Safety check for library existence
+    if (!XLSX || !XLSX.utils) {
+        console.error("XLSX library is not properly loaded.");
+        toast.error("Library Error: Please refresh the page and try again.");
+        return;
+    }
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
     const loadingToast = toast.loading("Parsing Excel file...");
@@ -468,14 +475,15 @@ const handleFileUpload = (e) => {
     reader.onload = async (evt) => {
         try {
             const bstr = evt.target.result;
-            
-            // Fixed: using 'read' and 'utils' directly
-            const wb = read(bstr, { type: 'binary', cellDates: true });
+            const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
             const sheetName = wb.SheetNames[0];
-            const rawData = utils.sheet_to_json(wb.Sheets[sheetName]);
+            const worksheet = wb.Sheets[sheetName];
+            
+            // Convert to JSON
+            const rawData = XLSX.utils.sheet_to_json(worksheet);
 
             if (!rawData || rawData.length === 0) {
-                toast.error("The Excel file appears to be empty.", { id: loadingToast });
+                toast.error("Excel file is empty or invalid.", { id: loadingToast });
                 setActionLocks(prev => ({ ...prev, bulkUpload: false }));
                 return;
             }
@@ -488,10 +496,9 @@ const handleFileUpload = (e) => {
                     return actualKey ? row[actualKey] : "";
                 };
 
-                const rawName = String(getVal('Internal Examiner')).trim(); 
-                if (!rawName || rawName === "undefined" || rawName === "") return; 
+                const rawName = String(getVal('Internal Examiner')).trim();
+                if (!rawName || rawName === "undefined" || rawName === "") return;
 
-                // Extract Name: handles "(ID)-Name" or just "Name"
                 const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
                 const mobile = String(getVal('Mobile No.')).trim();
                 
@@ -528,24 +535,23 @@ const handleFileUpload = (e) => {
 
             const finalData = Array.from(facultyMap.values());
             
-            // Sending to Backend
-            toast.loading(`Uploading ${finalData.length} records to server...`, { id: loadingToast });
+            toast.loading(`Uploading ${finalData.length} records...`, { id: loadingToast });
             const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Success! ${res.data.added} examiners added, ${res.data.extended} updated.`, { id: loadingToast });
+            toast.success(`Successfully added ${res.data.added} and updated ${res.data.extended} examiners.`, { id: loadingToast });
             fetchFaculty(); 
             if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
-            console.error("Client Error:", err);
-            toast.error("Failed to process file. Check console for details.", { id: loadingToast });
+            console.error("Client side processing error:", err);
+            toast.error("Error processing Excel data. Please check the file format.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }
     };
-    
+
     reader.onerror = () => {
-        toast.error("Error reading file.", { id: loadingToast });
+        toast.error("Failed to read the file.", { id: loadingToast });
         setActionLocks(prev => ({ ...prev, bulkUpload: false }));
     };
 

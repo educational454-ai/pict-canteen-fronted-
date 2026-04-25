@@ -461,31 +461,30 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Direct check for the imported functions
-    if (!read || !utils) {
-        console.error("Excel library functions are missing!");
-        toast.error("Library Error: Please refresh your browser.");
+    // Check if library functions are actually loaded
+    if (typeof read === 'undefined' || typeof utils === 'undefined') {
+        toast.error("Excel library is not initialized. Please refresh the page.");
         return;
     }
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading("Parsing Excel file...");
+    const loadingToast = toast.loading("Processing Excel file...");
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
-            const bstr = evt.target.result;
+            const data = new Uint8Array(evt.target.result);
+            // Using direct 'read' function instead of XLSX.read
+            const workbook = read(data, { type: 'array', cellDates: true });
             
-            // Using direct 'read' function
-            const wb = read(bstr, { type: 'binary', cellDates: true });
-            const sheetName = wb.SheetNames[0];
-            const worksheet = wb.Sheets[sheetName];
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
             
-            // Using direct 'utils' function
+            // Using direct 'utils' instead of XLSX.utils
             const rawData = utils.sheet_to_json(worksheet);
 
             if (!rawData || rawData.length === 0) {
-                toast.error("Excel file is empty.", { id: loadingToast });
+                toast.error("Excel file appears to be empty.", { id: loadingToast });
                 setActionLocks(prev => ({ ...prev, bulkUpload: false }));
                 return;
             }
@@ -537,22 +536,23 @@ const handleFileUpload = (e) => {
 
             const finalData = Array.from(facultyMap.values());
             
-            toast.loading(`Uploading ${finalData.length} records...`, { id: loadingToast });
+            toast.loading(`Uploading ${finalData.length} records to server...`, { id: loadingToast });
             const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Success! Added ${res.data.added} and updated ${res.data.extended} records.`, { id: loadingToast });
+            toast.success(`Success! ${res.data.added} added, ${res.data.extended} updated.`, { id: loadingToast });
             fetchFaculty(); 
             if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
             console.error("Processing Error:", err);
-            toast.error("Format Error: Please check Excel headers.", { id: loadingToast });
+            toast.error("Format Error: Please check Excel headers or file integrity.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }
     };
 
-    reader.readAsBinaryString(file);
+    // Using ArrayBuffer for better stability in modern browsers
+    reader.readAsArrayBuffer(file);
 };
 
   const filteredFaculty = faculty.filter(f => {

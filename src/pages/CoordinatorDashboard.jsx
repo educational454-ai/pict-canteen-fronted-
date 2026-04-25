@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket, MessageSquare, AlertTriangle, TrendingUp, UserCheck } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import * as XLSX from 'xlsx/xlsx.mjs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -461,23 +462,22 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Get logged-in department (e.g., "COMPUTER")
-    const loggedInDept = (sessionStorage.getItem('deptName') || "").toUpperCase();
-    const searchKeyword = loggedInDept.split(' ')[0]; // Takes "COMPUTER" from "COMPUTER ENGINEERING"
+    // 1. Get current department (e.g., "COMPUTER") from session
+    const loggedInDeptName = (sessionStorage.getItem('deptName') || "").toUpperCase();
+    const deptKeyword = loggedInDeptName.split(' ')[0]; // Takes "COMPUTER" from "COMPUTER ENGINEERING"
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading(`Filtering data for ${searchKeyword}...`);
+    const loadingToast = toast.loading(`Processing and filtering for ${deptKeyword}...`);
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
             const data = new Uint8Array(evt.target.result);
             const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             
             // Standard JSON conversion
-            const rawData = XLSX.utils.sheet_to_json(sheet);
-
+            const rawData = XLSX.utils.sheet_to_json(worksheet);
             const facultyMap = new Map();
 
             rawData.forEach(row => {
@@ -486,11 +486,12 @@ const handleFileUpload = (e) => {
                     return actualKey ? String(row[actualKey]) : "";
                 };
 
-                // 1. FILTER: Only keep rows belonging to your department
+                // 2. FILTERING LOGIC
                 const patternName = getVal('Pattern Name').toUpperCase();
-                if (!patternName.includes(searchKeyword)) return;
+                // Check if the row belongs to the coordinator's department
+                if (!patternName.includes(deptKeyword)) return;
 
-                // 2. DATA EXTRACTION
+                // 3. DATA EXTRACTION
                 const rawName = getVal('Internal Examiner').trim();
                 if (!rawName || rawName === "" || rawName === "undefined") return;
 
@@ -500,7 +501,7 @@ const handleFileUpload = (e) => {
                 const fromDateStr = formatExcelDateSafely(getVal('From Date'));
                 const tillDateStr = formatExcelDateSafely(getVal('End Date'));
                 
-                // Determine Year Scope
+                // Determine Year (SE -> 2nd, TE -> 3rd, BE -> 4th)
                 let yearScope = "2nd Yr (Regular)";
                 if (patternName.includes("T.E.")) yearScope = "3rd Yr (Regular)";
                 if (patternName.includes("B.E.")) yearScope = "4th Yr (Regular)";
@@ -530,22 +531,22 @@ const handleFileUpload = (e) => {
             const finalData = Array.from(facultyMap.values());
 
             if (finalData.length === 0) {
-                toast.error(`No records found for ${searchKeyword} department.`, { id: loadingToast });
+                toast.error(`No records found matching ${deptKeyword} department.`, { id: loadingToast });
                 setActionLocks(prev => ({ ...prev, bulkUpload: false }));
                 return;
             }
 
-            // 3. BACKEND UPLOAD
-            toast.loading(`Uploading ${finalData.length} records...`, { id: loadingToast });
+            // 4. SYNC WITH BACKEND
+            toast.loading(`Syncing ${finalData.length} records to server...`, { id: loadingToast });
             const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Success! Processed ${finalData.length} entries.`, { id: loadingToast });
+            toast.success(`Success! Processed ${finalData.length} entries for ${deptKeyword}.`, { id: loadingToast });
             fetchFaculty();
             if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
-            console.error("Critical Error:", err);
-            toast.error("Format Error: Library failed or headers mismatch.", { id: loadingToast });
+            console.error("Library Error:", err);
+            toast.error("Format Error: Failed to process Excel data.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }

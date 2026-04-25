@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket, MessageSquare, AlertTriangle, TrendingUp, UserCheck } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { read, utils } from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API from '../api/axios';
@@ -461,29 +461,24 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Safety check for library existence
-    if (!XLSX || !XLSX.utils) {
-        console.error("XLSX library is not properly loaded.");
-        toast.error("Library Error: Please refresh the page and try again.");
-        return;
-    }
-
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading("Parsing Excel file...");
+    const loadingToast = toast.loading("Processing Excel file...");
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
-            const bstr = evt.target.result;
-            const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
-            const sheetName = wb.SheetNames[0];
-            const worksheet = wb.Sheets[sheetName];
+            const data = new Uint8Array(evt.target.result);
+            // Directly using 'read' from the import
+            const workbook = read(data, { type: 'array', cellDates: true });
             
-            // Convert to JSON
-            const rawData = XLSX.utils.sheet_to_json(worksheet);
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Directly using 'utils' from the import
+            const rawData = utils.sheet_to_json(worksheet);
 
             if (!rawData || rawData.length === 0) {
-                toast.error("Excel file is empty or invalid.", { id: loadingToast });
+                toast.error("Excel file is empty.", { id: loadingToast });
                 setActionLocks(prev => ({ ...prev, bulkUpload: false }));
                 return;
             }
@@ -499,9 +494,11 @@ const handleFileUpload = (e) => {
                 const rawName = String(getVal('Internal Examiner')).trim();
                 if (!rawName || rawName === "undefined" || rawName === "") return;
 
+                // Format: (ID)-Name -> Patil Rupali Ashok
                 const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
                 const mobile = String(getVal('Mobile No.')).trim();
                 
+                // Date Handling (Safe for empty cells like row 6 in your screenshot)
                 const fromDateStr = formatExcelDateSafely(getVal('From Date'));
                 const tillDateStr = formatExcelDateSafely(getVal('End Date'));
                 
@@ -509,9 +506,12 @@ const handleFileUpload = (e) => {
                 const extractedYear = patternName.includes('(') ? patternName.split('(')[1].substring(0, 4) : (isMTech ? "1st Yr" : "2nd Yr");
                 const finalYearScope = yearScope !== '' ? yearScope : extractedYear;
 
+                // Subject formatting
                 const subjectName = String(getVal('Subject Name') || "").replace(/^\(.*?\)-\s*\d*\s*/, '').trim();
                 const subjectType = getVal('Subject Type');
                 const combinedSubject = subjectName && subjectType ? `${subjectName} (${subjectType})` : subjectName || subjectType;
+                
+                // Creating a unique subject string for tracking
                 const smartSubject = combinedSubject ? `${fromDateStr}|${tillDateStr}|${combinedSubject}` : null;
 
                 if (facultyMap.has(mobile)) {
@@ -533,29 +533,26 @@ const handleFileUpload = (e) => {
                 }
             });
 
-            const finalData = Array.from(facultyMap.values());
+            const finalDataArray = Array.from(facultyMap.values());
             
-            toast.loading(`Uploading ${finalData.length} records...`, { id: loadingToast });
-            const res = await API.post('/faculty/bulk-add', finalData);
+            // Step 2: Upload to Backend
+            toast.loading(`Syncing ${finalDataArray.length} records to server...`, { id: loadingToast });
+            const res = await API.post('/faculty/bulk-add', finalDataArray);
             
-            toast.success(`Successfully added ${res.data.added} and updated ${res.data.extended} examiners.`, { id: loadingToast });
+            toast.success(`Successfully processed! ${res.data.added} added, ${res.data.extended} updated.`, { id: loadingToast });
             fetchFaculty(); 
             if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
-            console.error("Client side processing error:", err);
-            toast.error("Error processing Excel data. Please check the file format.", { id: loadingToast });
+            console.error("Error details:", err);
+            toast.error("Failed to process Excel data. Please check file format.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }
     };
 
-    reader.onerror = () => {
-        toast.error("Failed to read the file.", { id: loadingToast });
-        setActionLocks(prev => ({ ...prev, bulkUpload: false }));
-    };
-
-    reader.readAsBinaryString(file);
+    // Buffer read is more stable for Vite/Modern Browsers
+    reader.readAsArrayBuffer(file);
 };
 
   const filteredFaculty = faculty.filter(f => {

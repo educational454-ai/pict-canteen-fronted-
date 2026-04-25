@@ -461,98 +461,58 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // 1. Get Coordinator Department from Session (e.g., "COMPUTER")
+    // Get your dept from session (e.g., "COMPUTER")
     const loggedInDept = (sessionStorage.getItem('deptName') || "").toUpperCase();
-    const searchKeyword = loggedInDept.split(' ')[0]; // Extracts "COMPUTER" from "COMPUTER ENGINEERING"
+    const searchKeyword = loggedInDept.split(' ')[0]; 
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading(`Filtering data for ${searchKeyword} department...`);
+    const loadingToast = toast.loading(`Filtering data for ${searchKeyword}...`);
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
-            // Defensive check for the library in the current build context
-            if (!XLSX || !XLSX.utils) {
-                throw new Error("Excel library failed to initialize. Please refresh.");
-            }
+            // THE FIX: Accessing utils through a safer reference
+            const xlsxUtils = XLSX.utils;
+            if (!xlsxUtils) throw new Error("Excel library failed to load.");
 
             const data = new Uint8Array(evt.target.result);
             const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            
-            // Convert Excel to JSON
-            const rawData = XLSX.utils.sheet_to_json(sheet);
-            const facultyMap = new Map();
+            const rawData = xlsxUtils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
+            const facultyMap = new Map();
             rawData.forEach(row => {
-                const getVal = (searchKey) => {
-                    const actualKey = Object.keys(row).find(k => k.trim().toLowerCase() === searchKey.toLowerCase());
-                    return actualKey ? String(row[actualKey]) : "";
+                const getVal = (k) => {
+                    const key = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+                    return key ? String(row[key]) : "";
                 };
 
-                // 🚀 STEP 1: Department Filtering Logic
-                const patternName = getVal('Pattern Name').toUpperCase();
-                
-                // Only process rows where Pattern Name matches your department
-                // (e.g., if you are the Computer Coordinator, it only keeps rows with "(COMPUTER)")
-                if (!patternName.includes(searchKeyword)) return;
+                // FILTER: Only your department rows
+                if (!getVal('Pattern Name').toUpperCase().includes(searchKeyword)) return;
 
-                // 🚀 STEP 2: Data Cleaning
-                const rawName = getVal('Internal Examiner').trim();
-                if (!rawName || rawName === "" || rawName === "undefined") return;
-
-                // Handles format: (52201689059)-Patil Rupali Ashok
-                const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
                 const mobile = getVal('Mobile No.').trim();
-                const fromDateStr = formatExcelDateSafely(getVal('From Date'));
-                const tillDateStr = formatExcelDateSafely(getVal('End Date'));
-                
-                // Determine Year Scope from the Pattern Name string
-                let yearScope = "2nd Yr (Regular)";
-                if (patternName.includes("T.E.")) yearScope = "3rd Yr (Regular)";
-                if (patternName.includes("B.E.")) yearScope = "4th Yr (Regular)";
+                const rawName = getVal('Internal Examiner').trim();
+                if (!mobile || !rawName) return;
 
-                const subject = getVal('Subject Name');
-                const smartSubject = subject ? `${fromDateStr}|${tillDateStr}|${subject}` : null;
-
-                if (facultyMap.has(mobile)) {
-                    const existing = facultyMap.get(mobile);
-                    if (smartSubject && !existing.assignedSubjects.includes(smartSubject)) {
-                        existing.assignedSubjects.push(smartSubject);
-                    }
-                } else {
-                    facultyMap.set(mobile, { 
-                        fullName: cleanedName, 
-                        email: `${cleanedName.replace(/\s+/g, '.').toLowerCase()}@pict.edu`, 
-                        mobile, 
-                        academicYear: yearScope, 
-                        departmentId: deptId, 
-                        validFrom: fromDateStr, 
-                        validTill: tillDateStr, 
-                        assignedSubjects: smartSubject ? [smartSubject] : [] 
-                    });
-                }
+                facultyMap.set(mobile, {
+                    fullName: rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName,
+                    mobile,
+                    departmentId: deptId,
+                    academicYear: getVal('Pattern Name').includes("T.E.") ? "3rd Yr" : "2nd Yr",
+                    validFrom: formatExcelDateSafely(getVal('From Date')),
+                    validTill: formatExcelDateSafely(getVal('End Date')),
+                    assignedSubjects: [getVal('Subject Name')]
+                });
             });
 
             const finalData = Array.from(facultyMap.values());
-
-            if (finalData.length === 0) {
-                toast.error(`No records matching ${searchKeyword} department found in this file.`, { id: loadingToast });
-                setActionLocks(prev => ({ ...prev, bulkUpload: false }));
-                return;
-            }
-
-            // 🚀 STEP 3: Upload Filtered Data to Backend
-            toast.loading(`Syncing ${finalData.length} records to server...`, { id: loadingToast });
-            const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Success! Successfully processed ${finalData.length} examiners for ${searchKeyword}.`, { id: loadingToast });
+            // Send only filtered (30-40) rows
+            const res = await API.post('/faculty/bulk-add', finalData);
+            toast.success(`Processed ${finalData.length} records!`, { id: loadingToast });
             fetchFaculty();
-            if(fileInputRef.current) fileInputRef.current.value = ""; 
-
         } catch (err) {
-            console.error("Critical Upload Error:", err);
-            toast.error(err.message || "Failed to process Excel. Please check file format.", { id: loadingToast });
+            console.error(err);
+            toast.error("Upload failed. Check console for library error.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }

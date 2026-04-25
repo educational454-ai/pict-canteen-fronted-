@@ -462,22 +462,26 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // 1. Get current department (e.g., "COMPUTER") from session
-    const loggedInDeptName = (sessionStorage.getItem('deptName') || "").toUpperCase();
-    const deptKeyword = loggedInDeptName.split(' ')[0]; // Takes "COMPUTER" from "COMPUTER ENGINEERING"
+    // Get your department (e.g., "COMPUTER")
+    const loggedInDept = (sessionStorage.getItem('deptName') || "").toUpperCase();
+    // Get the first word: "COMPUTER ENGINEERING" -> "COMPUTER"
+    const searchKeyword = loggedInDept.split(' ')[0]; 
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading(`Processing and filtering for ${deptKeyword}...`);
+    const loadingToast = toast.loading(`Preparing to sync ${searchKeyword} examiners...`);
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
+            // 🔥 VITE 8 & REACT 19 FIX: Dynamic import to avoid build errors
+            const XLSX = await import('xlsx');
+            
             const data = new Uint8Array(evt.target.result);
             const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
             
             // Standard JSON conversion
-            const rawData = XLSX.utils.sheet_to_json(worksheet);
+            const rawData = XLSX.utils.sheet_to_json(sheet);
             const facultyMap = new Map();
 
             rawData.forEach(row => {
@@ -486,22 +490,21 @@ const handleFileUpload = (e) => {
                     return actualKey ? String(row[actualKey]) : "";
                 };
 
-                // 2. FILTERING LOGIC
+                // 🚀 STEP 1: Department Filtering
                 const patternName = getVal('Pattern Name').toUpperCase();
-                // Check if the row belongs to the coordinator's department
-                if (!patternName.includes(deptKeyword)) return;
+                // Logic: Only process rows that contain your department keyword
+                if (!patternName.includes(searchKeyword)) return;
 
-                // 3. DATA EXTRACTION
+                // 🚀 STEP 2: Data Extraction
                 const rawName = getVal('Internal Examiner').trim();
                 if (!rawName || rawName === "" || rawName === "undefined") return;
 
-                // Handles format: (52201689059)-Patil Rupali Ashok
                 const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
                 const mobile = getVal('Mobile No.').trim();
                 const fromDateStr = formatExcelDateSafely(getVal('From Date'));
                 const tillDateStr = formatExcelDateSafely(getVal('End Date'));
                 
-                // Determine Year (SE -> 2nd, TE -> 3rd, BE -> 4th)
+                // Set Year Scope automatically
                 let yearScope = "2nd Yr (Regular)";
                 if (patternName.includes("T.E.")) yearScope = "3rd Yr (Regular)";
                 if (patternName.includes("B.E.")) yearScope = "4th Yr (Regular)";
@@ -531,22 +534,22 @@ const handleFileUpload = (e) => {
             const finalData = Array.from(facultyMap.values());
 
             if (finalData.length === 0) {
-                toast.error(`No records found matching ${deptKeyword} department.`, { id: loadingToast });
+                toast.error(`No examiners found matching "${searchKeyword}" department.`, { id: loadingToast });
                 setActionLocks(prev => ({ ...prev, bulkUpload: false }));
                 return;
             }
 
-            // 4. SYNC WITH BACKEND
+            // 🚀 STEP 3: Optimized Backend Upload
             toast.loading(`Syncing ${finalData.length} records to server...`, { id: loadingToast });
             const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Success! Processed ${finalData.length} entries for ${deptKeyword}.`, { id: loadingToast });
+            toast.success(`Success! Successfully processed ${finalData.length} ${searchKeyword} examiners.`, { id: loadingToast });
             fetchFaculty();
             if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
-            console.error("Library Error:", err);
-            toast.error("Format Error: Failed to process Excel data.", { id: loadingToast });
+            console.error("Critical Upload Error:", err);
+            toast.error("Format Error: Failed to parse Excel data. Check console.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }

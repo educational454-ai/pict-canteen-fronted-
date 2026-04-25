@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket, MessageSquare, AlertTriangle, TrendingUp, UserCheck } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API from '../api/axios';
@@ -456,68 +455,37 @@ const CoordinatorDashboard = () => {
     finally { setActionLocks(prev => ({ ...prev, addGuest: false })); }
   };
 
-const handleFileUpload = (e) => {
+const handleFileUpload = async (e) => {
     if (actionLocks.bulkUpload) return;
     const file = e.target.files[0];
     if (!file) return;
 
-    // Get your dept from session (e.g., "COMPUTER")
-    const loggedInDept = (sessionStorage.getItem('deptName') || "").toUpperCase();
-    const searchKeyword = loggedInDept.split(' ')[0]; 
-
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading(`Filtering data for ${searchKeyword}...`);
+    const loadingToast = toast.loading("Uploading and processing file on server...");
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-        try {
-            // THE FIX: Accessing utils through a safer reference
-            const xlsxUtils = XLSX.utils;
-            if (!xlsxUtils) throw new Error("Excel library failed to load.");
+    try {
+        // Prepare Multi-part form data
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('departmentId', deptId);
+        formData.append('deptName', deptName);
 
-            const data = new Uint8Array(evt.target.result);
-            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-            const rawData = xlsxUtils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        // Send raw file to backend
+        const res = await API.post('/faculty/bulk-upload-file', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
 
-            const facultyMap = new Map();
-            rawData.forEach(row => {
-                const getVal = (k) => {
-                    const key = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
-                    return key ? String(row[key]) : "";
-                };
-
-                // FILTER: Only your department rows
-                if (!getVal('Pattern Name').toUpperCase().includes(searchKeyword)) return;
-
-                const mobile = getVal('Mobile No.').trim();
-                const rawName = getVal('Internal Examiner').trim();
-                if (!mobile || !rawName) return;
-
-                facultyMap.set(mobile, {
-                    fullName: rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName,
-                    mobile,
-                    departmentId: deptId,
-                    academicYear: getVal('Pattern Name').includes("T.E.") ? "3rd Yr" : "2nd Yr",
-                    validFrom: formatExcelDateSafely(getVal('From Date')),
-                    validTill: formatExcelDateSafely(getVal('End Date')),
-                    assignedSubjects: [getVal('Subject Name')]
-                });
-            });
-
-            const finalData = Array.from(facultyMap.values());
-            
-            // Send only filtered (30-40) rows
-            const res = await API.post('/faculty/bulk-add', finalData);
-            toast.success(`Processed ${finalData.length} records!`, { id: loadingToast });
+        if (res.data.success) {
+            toast.success(`Success! Added ${res.data.added} & Updated ${res.data.updated} examiners.`, { id: loadingToast });
             fetchFaculty();
-        } catch (err) {
-            console.error(err);
-            toast.error("Upload failed. Check console for library error.", { id: loadingToast });
-        } finally {
-            setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }
-    };
-    reader.readAsArrayBuffer(file);
+    } catch (err) {
+        console.error("Upload error:", err);
+        toast.error("Failed to upload. Please check Excel format or Server status.", { id: loadingToast });
+    } finally {
+        setActionLocks(prev => ({ ...prev, bulkUpload: false }));
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    }
 };
 
   const filteredFaculty = faculty.filter(f => {

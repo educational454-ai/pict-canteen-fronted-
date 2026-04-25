@@ -462,16 +462,23 @@ const handleFileUpload = (e) => {
     if (!file) return;
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading("Excel parse ho raha hai...");
+    const loadingToast = toast.loading("Parsing Excel file...");
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
             const bstr = evt.target.result;
-            // 'read' use kar rahe hain direct
+            
+            // Fixed: using 'read' and 'utils' directly
             const wb = read(bstr, { type: 'binary', cellDates: true });
             const sheetName = wb.SheetNames[0];
             const rawData = utils.sheet_to_json(wb.Sheets[sheetName]);
+
+            if (!rawData || rawData.length === 0) {
+                toast.error("The Excel file appears to be empty.", { id: loadingToast });
+                setActionLocks(prev => ({ ...prev, bulkUpload: false }));
+                return;
+            }
 
             const facultyMap = new Map();
 
@@ -482,13 +489,12 @@ const handleFileUpload = (e) => {
                 };
 
                 const rawName = String(getVal('Internal Examiner')).trim(); 
-                if (!rawName || rawName === "undefined") return; 
+                if (!rawName || rawName === "undefined" || rawName === "") return; 
 
-                // Name format fix: (ID)-Name
+                // Extract Name: handles "(ID)-Name" or just "Name"
                 const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
                 const mobile = String(getVal('Mobile No.')).trim();
                 
-                // Date formatting
                 const fromDateStr = formatExcelDateSafely(getVal('From Date'));
                 const tillDateStr = formatExcelDateSafely(getVal('End Date'));
                 
@@ -522,21 +528,27 @@ const handleFileUpload = (e) => {
 
             const finalData = Array.from(facultyMap.values());
             
-            // Backend call
-            toast.loading(`Sending ${finalData.length} records to server...`, { id: loadingToast });
+            // Sending to Backend
+            toast.loading(`Uploading ${finalData.length} records to server...`, { id: loadingToast });
             const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Success! ${res.data.added} added, ${res.data.extended} updated.`, { id: loadingToast });
+            toast.success(`Success! ${res.data.added} examiners added, ${res.data.extended} updated.`, { id: loadingToast });
             fetchFaculty(); 
             if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
             console.error("Client Error:", err);
-            toast.error("Processing mein error aaya. Console check kar.", { id: loadingToast });
+            toast.error("Failed to process file. Check console for details.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }
     };
+    
+    reader.onerror = () => {
+        toast.error("Error reading file.", { id: loadingToast });
+        setActionLocks(prev => ({ ...prev, bulkUpload: false }));
+    };
+
     reader.readAsBinaryString(file);
 };
 

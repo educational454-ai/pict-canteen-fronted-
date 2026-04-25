@@ -472,12 +472,14 @@ const handleFileUpload = async (e) => {
 
         // Send raw file to backend
         const res = await API.post('/faculty/bulk-upload-file', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' }
         });
 
         if (res.data.success) {
-            toast.success(`Success! Added ${res.data.added} & Updated ${res.data.updated} examiners.`, { id: loadingToast });
-            fetchFaculty();
+        toast.success(`Done! Added ${res.data.added} records.`, { id: loadingToast });
+        } else {
+        // 🚨 Ye line bata degi ki mismatch kahan hai
+        toast.error(`Backend Message: ${res.data.message}`, { id: loadingToast, duration: 5000 });
         }
     } catch (err) {
         console.error("Upload error:", err);

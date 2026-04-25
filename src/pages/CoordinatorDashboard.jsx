@@ -494,12 +494,22 @@ const CoordinatorDashboard = () => {
           facultyMap.set(mobile, { fullName: cleanedName, email: `${cleanedName.replace(/\s+/g, '.').toLowerCase()}@pict.edu`, mobile, academicYear: finalYearScope, departmentId: deptId, validFrom: fromDateStr, validTill: tillDateStr, assignedSubjects: smartSubject ? [smartSubject] : [] });
         }
       });
-      try {
-        const res = await API.post('/faculty/bulk-add', Array.from(facultyMap.values()));
-        toast.success(`Success: ${res.data.added} added, ${res.data.extended} extended.`); fetchFaculty(); 
-        if(fileInputRef.current) fileInputRef.current.value = ""; 
-      } catch (err) { toast.error(`Upload Failed.`); }
-      finally { setActionLocks(prev => ({ ...prev, bulkUpload: false })); }
+// CoordinatorDashboard.jsx ke andar handleFileUpload ka try block:
+try {
+    const loadingToast = toast.loading("Processing Excel data... Please wait."); // 👈 Add this
+    const res = await API.post('/faculty/bulk-add', Array.from(facultyMap.values()));
+    
+    toast.dismiss(loadingToast); // 👈 Close loading toast
+    toast.success(`Import Success! ${res.data.added} new added, ${res.data.extended} updated.`);
+    
+    fetchFaculty(); 
+    if(fileInputRef.current) fileInputRef.current.value = ""; 
+} catch (err) {
+    toast.dismiss();
+    toast.error(`Upload Failed: ${err.response?.data?.details || "Server Timeout"}`); 
+} finally {
+    setActionLocks(prev => ({ ...prev, bulkUpload: false }));
+}    
     };
     reader.onerror = () => {
       toast.error("Failed to read Excel file.");

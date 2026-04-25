@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket, MessageSquare, AlertTriangle, TrendingUp, UserCheck } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { read, utils } from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API from '../api/axios';
@@ -456,67 +456,89 @@ const CoordinatorDashboard = () => {
     finally { setActionLocks(prev => ({ ...prev, addGuest: false })); }
   };
 
-  const handleFileUpload = (e) => { 
+const handleFileUpload = (e) => { 
     if (actionLocks.bulkUpload) return;
     const file = e.target.files[0];
     if (!file) return;
+
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
+    const loadingToast = toast.loading("Excel parse ho raha hai...");
+
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const bstr = evt.target.result;
-      const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
-      const rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      const facultyMap = new Map();
-      rawData.forEach(row => {
-        const getVal = (searchKey) => {
-            const actualKey = Object.keys(row).find(k => k.trim().toLowerCase() === searchKey.toLowerCase());
-            return actualKey ? row[actualKey] : "";
-        };
-        const rawName = getVal('Internal Examiner'); if (!rawName) return; 
-        const cleanedName = rawName.includes('-') ? rawName.split('-')[1].trim() : rawName;
-        const mobile = String(getVal('Mobile No.')).trim();
-        const fromDateStr = formatExcelDateSafely(getVal('From Date'));
-        const tillDateStr = formatExcelDateSafely(getVal('End Date'));
-        const patternName = String(getVal('Pattern Name') || "");
-        const extractedYear = patternName.includes('(') ? patternName.split('(')[1].substring(0, 4) : (isMTech ? "1st Yr" : "2nd Yr");
-        const finalYearScope = yearScope !== '' ? yearScope : extractedYear;
-        let subjectName = String(getVal('Subject Name') || "").replace(/^\(.*?\)-\s*\d*\s*/, '').trim();
-        const subjectType = getVal('Subject Type');
-        const combinedSubject = subjectName && subjectType ? `${subjectName} (${subjectType})` : subjectName || subjectType;
-        const smartSubject = combinedSubject ? `${fromDateStr}|${tillDateStr}|${combinedSubject}` : null;
-        if (facultyMap.has(mobile)) {
-          const existing = facultyMap.get(mobile);
-          if (fromDateStr < existing.validFrom) existing.validFrom = fromDateStr;
-          if (tillDateStr > existing.validTill) existing.validTill = tillDateStr;
-          existing.academicYear = finalYearScope; 
-          if (smartSubject && !existing.assignedSubjects.includes(smartSubject)) existing.assignedSubjects.push(smartSubject);
-        } else {
-          facultyMap.set(mobile, { fullName: cleanedName, email: `${cleanedName.replace(/\s+/g, '.').toLowerCase()}@pict.edu`, mobile, academicYear: finalYearScope, departmentId: deptId, validFrom: fromDateStr, validTill: tillDateStr, assignedSubjects: smartSubject ? [smartSubject] : [] });
+        try {
+            const bstr = evt.target.result;
+            // 'read' use kar rahe hain direct
+            const wb = read(bstr, { type: 'binary', cellDates: true });
+            const sheetName = wb.SheetNames[0];
+            const rawData = utils.sheet_to_json(wb.Sheets[sheetName]);
+
+            const facultyMap = new Map();
+
+            rawData.forEach(row => {
+                const getVal = (searchKey) => {
+                    const actualKey = Object.keys(row).find(k => k.trim().toLowerCase() === searchKey.toLowerCase());
+                    return actualKey ? row[actualKey] : "";
+                };
+
+                const rawName = String(getVal('Internal Examiner')).trim(); 
+                if (!rawName || rawName === "undefined") return; 
+
+                // Name format fix: (ID)-Name
+                const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
+                const mobile = String(getVal('Mobile No.')).trim();
+                
+                // Date formatting
+                const fromDateStr = formatExcelDateSafely(getVal('From Date'));
+                const tillDateStr = formatExcelDateSafely(getVal('End Date'));
+                
+                const patternName = String(getVal('Pattern Name') || "");
+                const extractedYear = patternName.includes('(') ? patternName.split('(')[1].substring(0, 4) : (isMTech ? "1st Yr" : "2nd Yr");
+                const finalYearScope = yearScope !== '' ? yearScope : extractedYear;
+
+                const subjectName = String(getVal('Subject Name') || "").replace(/^\(.*?\)-\s*\d*\s*/, '').trim();
+                const subjectType = getVal('Subject Type');
+                const combinedSubject = subjectName && subjectType ? `${subjectName} (${subjectType})` : subjectName || subjectType;
+                const smartSubject = combinedSubject ? `${fromDateStr}|${tillDateStr}|${combinedSubject}` : null;
+
+                if (facultyMap.has(mobile)) {
+                    const existing = facultyMap.get(mobile);
+                    if (smartSubject && !existing.assignedSubjects.includes(smartSubject)) {
+                        existing.assignedSubjects.push(smartSubject);
+                    }
+                } else {
+                    facultyMap.set(mobile, { 
+                        fullName: cleanedName, 
+                        email: `${cleanedName.replace(/\s+/g, '.').toLowerCase()}@pict.edu`, 
+                        mobile, 
+                        academicYear: finalYearScope, 
+                        departmentId: deptId, 
+                        validFrom: fromDateStr, 
+                        validTill: tillDateStr, 
+                        assignedSubjects: smartSubject ? [smartSubject] : [] 
+                    });
+                }
+            });
+
+            const finalData = Array.from(facultyMap.values());
+            
+            // Backend call
+            toast.loading(`Sending ${finalData.length} records to server...`, { id: loadingToast });
+            const res = await API.post('/faculty/bulk-add', finalData);
+            
+            toast.success(`Success! ${res.data.added} added, ${res.data.extended} updated.`, { id: loadingToast });
+            fetchFaculty(); 
+            if(fileInputRef.current) fileInputRef.current.value = ""; 
+
+        } catch (err) {
+            console.error("Client Error:", err);
+            toast.error("Processing mein error aaya. Console check kar.", { id: loadingToast });
+        } finally {
+            setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }
-      });
-// CoordinatorDashboard.jsx ke andar handleFileUpload ka try block:
-try {
-    const loadingToast = toast.loading("Processing Excel data... Please wait."); // 👈 Add this
-    const res = await API.post('/faculty/bulk-add', Array.from(facultyMap.values()));
-    
-    toast.dismiss(loadingToast); // 👈 Close loading toast
-    toast.success(`Import Success! ${res.data.added} new added, ${res.data.extended} updated.`);
-    
-    fetchFaculty(); 
-    if(fileInputRef.current) fileInputRef.current.value = ""; 
-} catch (err) {
-    toast.dismiss();
-    toast.error(`Upload Failed: ${err.response?.data?.details || "Server Timeout"}`); 
-} finally {
-    setActionLocks(prev => ({ ...prev, bulkUpload: false }));
-}    
-    };
-    reader.onerror = () => {
-      toast.error("Failed to read Excel file.");
-      setActionLocks(prev => ({ ...prev, bulkUpload: false }));
     };
     reader.readAsBinaryString(file);
-  };
+};
 
   const filteredFaculty = faculty.filter(f => {
       const matchesSearch = f.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || f.voucherCode.toLowerCase().includes(searchTerm.toLowerCase()) || (f.email && f.email.toLowerCase().includes(searchTerm.toLowerCase()));

@@ -3,11 +3,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  define: {
-    // Ye line xlsx library ko global define karne mein help karegi
-    global: 'window', 
-  },
   optimizeDeps: {
-    include: ['xlsx'],
+    include: ['xlsx'], // Forces Vite to pre-bundle the library
+  },
+  build: {
+    commonjsOptions: {
+      include: [/xlsx/, /node_modules/], // Ensures CommonJS compatibility on Vercel
+    },
   },
 });

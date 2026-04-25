@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, FileSpreadsheet, LogOut, Search, Download, Mail, Trash2, Plus, X, RotateCcw, BarChart3, Calendar, FileText, Ticket, MessageSquare, AlertTriangle, TrendingUp, UserCheck } from 'lucide-react';
-import { read, utils } from 'xlsx';
+import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API from '../api/axios';
@@ -461,9 +461,10 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // 1. Coordinator ka department nikalo (e.g., "COMPUTER")
+    // 1. Get Coordinator Department (e.g., "COMPUTER")
     const loggedInDept = (sessionStorage.getItem('deptName') || "").toUpperCase();
-    const searchKeyword = loggedInDept.split(' ')[0]; // Takes "COMPUTER" from "COMPUTER ENGINEERING"
+    // We take the first word (e.g., "COMPUTER" from "COMPUTER ENGINEERING")
+    const searchKeyword = loggedInDept.split(' ')[0]; 
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
     const loadingToast = toast.loading(`Filtering data for ${searchKeyword} examiners...`);
@@ -471,14 +472,17 @@ const handleFileUpload = (e) => {
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
+            // Defensive check for the library
+            if (!XLSX || !XLSX.utils) {
+                throw new Error("Library initialization failed.");
+            }
+
             const data = new Uint8Array(evt.target.result);
-            
-            // Standard reading for Vite 8
-            const workbook = read(data, { type: 'array', cellDates: true });
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             
-            // Convert to JSON
-            const rawData = utils.sheet_to_json(sheet);
+            // Convert Excel to JSON
+            const rawData = XLSX.utils.sheet_to_json(sheet);
             const facultyMap = new Map();
 
             rawData.forEach(row => {
@@ -487,12 +491,14 @@ const handleFileUpload = (e) => {
                     return actualKey ? String(row[actualKey]) : "";
                 };
 
-                // 🚀 FILTERING: Only take rows that match your department
-                // (e.g., if Pattern Name contains "COMPUTER")
+                // 🚀 STEP 1: Department Filtering Logic
                 const patternName = getVal('Pattern Name').toUpperCase();
+                
+                // Only process rows where Pattern Name contains the coordinator's department
+                // (e.g., if Pattern Name has "(COMPUTER)", only the Computer Coordinator picks it up)
                 if (!patternName.includes(searchKeyword)) return;
 
-                // DATA CLEANING
+                // 🚀 STEP 2: Data Cleaning
                 const rawName = getVal('Internal Examiner').trim();
                 if (!rawName || rawName === "" || rawName === "undefined") return;
 
@@ -501,7 +507,7 @@ const handleFileUpload = (e) => {
                 const fromDateStr = formatExcelDateSafely(getVal('From Date'));
                 const tillDateStr = formatExcelDateSafely(getVal('End Date'));
                 
-                // Automatic Year Selection
+                // Smart Year Mapping based on Pattern Name
                 let yearScope = "2nd Yr (Regular)";
                 if (patternName.includes("T.E.")) yearScope = "3rd Yr (Regular)";
                 if (patternName.includes("B.E.")) yearScope = "4th Yr (Regular)";
@@ -531,22 +537,22 @@ const handleFileUpload = (e) => {
             const finalData = Array.from(facultyMap.values());
 
             if (finalData.length === 0) {
-                toast.error(`No records found for ${searchKeyword}.`, { id: loadingToast });
+                toast.error(`No matching records for ${searchKeyword} department found.`, { id: loadingToast });
                 setActionLocks(prev => ({ ...prev, bulkUpload: false }));
                 return;
             }
 
-            // BACKEND CALL
-            toast.loading(`Uploading ${finalData.length} records...`, { id: loadingToast });
+            // 🚀 STEP 3: Optimized Upload
+            toast.loading(`Uploading ${finalData.length} records to server...`, { id: loadingToast });
             const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Success! Processed ${finalData.length} examiners for ${searchKeyword}.`, { id: loadingToast });
+            toast.success(`Success! Successfully processed ${finalData.length} ${searchKeyword} records.`, { id: loadingToast });
             fetchFaculty();
             if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
-            console.error("Critical Error:", err);
-            toast.error("Format Error: Library initialization failed.", { id: loadingToast });
+            console.error("Critical Processing Error:", err);
+            toast.error(err.message || "Library failed to initialize. Please refresh.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }

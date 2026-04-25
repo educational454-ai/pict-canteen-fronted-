@@ -461,59 +461,63 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // 1. Get logged-in coordinator's department from session
-    // Make sure 'deptName' is exactly how it appears in your Excel
-    const loggedInDept = sessionStorage.getItem('deptName'); 
+    // Get the logged-in coordinator's department name
+    // Example: "COMPUTER" or "IT"
+    const loggedInDept = (sessionStorage.getItem('deptName') || "").toUpperCase(); 
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading("Filtering data for your department...");
+    const loadingToast = toast.loading("Processing Excel & Filtering Departments...");
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
+            // Using a more robust way to access XLSX for Vite
+            const XLSX = await import('xlsx');
             const data = new Uint8Array(evt.target.result);
-            const workbook = read(data, { type: 'array', cellDates: true });
-            const rawData = utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+            const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
             const facultyMap = new Map();
-            let ignoredCount = 0;
+            let skippedCount = 0;
 
             rawData.forEach(row => {
                 const getVal = (searchKey) => {
                     const actualKey = Object.keys(row).find(k => k.trim().toLowerCase() === searchKey.toLowerCase());
-                    return actualKey ? row[actualKey] : "";
+                    return actualKey ? String(row[actualKey]) : "";
                 };
 
-                // 2. DEPARTMENT CHECK LOGIC
-                // Check what the column name is in your Excel (e.g., 'Department' or 'Branch')
-                const rowDept = String(getVal('Department')).trim(); 
+                // 🚀 DEPT FILTERING LOGIC
+                const patternName = getVal('Pattern Name').toUpperCase();
                 
-                // If the row's department doesn't match the coordinator's, skip it ✋
-                if (rowDept !== loggedInDept) {
-                    ignoredCount++;
-                    return; 
+                // This checks if your logged-in dept (like "COMPUTER") 
+                // is mentioned anywhere in the "Pattern Name" column
+                if (!patternName.includes(loggedInDept)) {
+                    skippedCount++;
+                    return; // Skip faculty from other departments
                 }
 
-                const rawName = String(getVal('Internal Examiner')).trim();
+                const rawName = getVal('Internal Examiner').trim();
                 if (!rawName || rawName === "" || rawName === "undefined") return;
 
                 const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
-                const mobile = String(getVal('Mobile No.')).trim();
+                const mobile = getVal('Mobile No.').trim();
                 const fromDateStr = formatExcelDateSafely(getVal('From Date'));
                 const tillDateStr = formatExcelDateSafely(getVal('End Date'));
 
-                // Existing mapping logic...
+                // Existing data mapping...
                 if (facultyMap.has(mobile)) {
                     const existing = facultyMap.get(mobile);
-                    // Add subject logic...
+                    const subject = getVal('Subject Name');
+                    if (subject) existing.assignedSubjects.push(`${fromDateStr}|${tillDateStr}|${subject}`);
                 } else {
                     facultyMap.set(mobile, { 
                         fullName: cleanedName, 
                         mobile, 
-                        departmentId: deptId, // Uses the ID of the logged-in coordinator
+                        departmentId: deptId,
+                        academicYear: patternName.includes('S.E.') ? '2nd Yr (Regular)' : '3rd Yr (Regular)', // Dynamic Year check
                         validFrom: fromDateStr, 
                         validTill: tillDateStr,
-                        // ...other fields
+                        assignedSubjects: [] 
                     });
                 }
             });
@@ -521,20 +525,21 @@ const handleFileUpload = (e) => {
             const finalData = Array.from(facultyMap.values());
 
             if (finalData.length === 0) {
-                toast.error(`No records found for ${loggedInDept} in this file.`, { id: loadingToast });
+                toast.error(`No matching records found for ${loggedInDept}.`, { id: loadingToast });
+                setActionLocks(prev => ({ ...prev, bulkUpload: false }));
                 return;
             }
 
-            // 3. Send ONLY filtered data to backend
+            // Syncing with Backend
             toast.loading(`Syncing ${finalData.length} ${loggedInDept} records...`, { id: loadingToast });
             const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Done! Added ${res.data.added} records for your department.`, { id: loadingToast });
+            toast.success(`Success! Processed ${finalData.length} records. (${skippedCount} from other depts ignored)`, { id: loadingToast });
             fetchFaculty();
 
         } catch (err) {
-            console.error(err);
-            toast.error("Format Error: Check Excel headers.", { id: loadingToast });
+            console.error("Upload Error:", err);
+            toast.error("Failed to parse Excel. Check format.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }

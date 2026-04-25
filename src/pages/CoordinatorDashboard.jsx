@@ -461,20 +461,27 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Direct check for the imported functions
+    if (!read || !utils) {
+        console.error("Excel library functions are missing!");
+        toast.error("Library Error: Please refresh your browser.");
+        return;
+    }
+
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading("Processing Excel file...");
+    const loadingToast = toast.loading("Parsing Excel file...");
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
-            const data = new Uint8Array(evt.target.result);
-            // Directly using 'read' from the import
-            const workbook = read(data, { type: 'array', cellDates: true });
+            const bstr = evt.target.result;
             
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
+            // Using direct 'read' function
+            const wb = read(bstr, { type: 'binary', cellDates: true });
+            const sheetName = wb.SheetNames[0];
+            const worksheet = wb.Sheets[sheetName];
             
-            // Directly using 'utils' from the import
+            // Using direct 'utils' function
             const rawData = utils.sheet_to_json(worksheet);
 
             if (!rawData || rawData.length === 0) {
@@ -494,11 +501,9 @@ const handleFileUpload = (e) => {
                 const rawName = String(getVal('Internal Examiner')).trim();
                 if (!rawName || rawName === "undefined" || rawName === "") return;
 
-                // Format: (ID)-Name -> Patil Rupali Ashok
                 const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
                 const mobile = String(getVal('Mobile No.')).trim();
                 
-                // Date Handling (Safe for empty cells like row 6 in your screenshot)
                 const fromDateStr = formatExcelDateSafely(getVal('From Date'));
                 const tillDateStr = formatExcelDateSafely(getVal('End Date'));
                 
@@ -506,12 +511,9 @@ const handleFileUpload = (e) => {
                 const extractedYear = patternName.includes('(') ? patternName.split('(')[1].substring(0, 4) : (isMTech ? "1st Yr" : "2nd Yr");
                 const finalYearScope = yearScope !== '' ? yearScope : extractedYear;
 
-                // Subject formatting
                 const subjectName = String(getVal('Subject Name') || "").replace(/^\(.*?\)-\s*\d*\s*/, '').trim();
                 const subjectType = getVal('Subject Type');
                 const combinedSubject = subjectName && subjectType ? `${subjectName} (${subjectType})` : subjectName || subjectType;
-                
-                // Creating a unique subject string for tracking
                 const smartSubject = combinedSubject ? `${fromDateStr}|${tillDateStr}|${combinedSubject}` : null;
 
                 if (facultyMap.has(mobile)) {
@@ -533,26 +535,24 @@ const handleFileUpload = (e) => {
                 }
             });
 
-            const finalDataArray = Array.from(facultyMap.values());
+            const finalData = Array.from(facultyMap.values());
             
-            // Step 2: Upload to Backend
-            toast.loading(`Syncing ${finalDataArray.length} records to server...`, { id: loadingToast });
-            const res = await API.post('/faculty/bulk-add', finalDataArray);
+            toast.loading(`Uploading ${finalData.length} records...`, { id: loadingToast });
+            const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Successfully processed! ${res.data.added} added, ${res.data.extended} updated.`, { id: loadingToast });
+            toast.success(`Success! Added ${res.data.added} and updated ${res.data.extended} records.`, { id: loadingToast });
             fetchFaculty(); 
             if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
-            console.error("Error details:", err);
-            toast.error("Failed to process Excel data. Please check file format.", { id: loadingToast });
+            console.error("Processing Error:", err);
+            toast.error("Format Error: Please check Excel headers.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }
     };
 
-    // Buffer read is more stable for Vite/Modern Browsers
-    reader.readAsArrayBuffer(file);
+    reader.readAsBinaryString(file);
 };
 
   const filteredFaculty = faculty.filter(f => {

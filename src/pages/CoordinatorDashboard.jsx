@@ -461,20 +461,19 @@ const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // 1. Get Coordinator Department (e.g., "COMPUTER")
+    // 1. Get Coordinator Department from Session (e.g., "COMPUTER")
     const loggedInDept = (sessionStorage.getItem('deptName') || "").toUpperCase();
-    // We take the first word (e.g., "COMPUTER" from "COMPUTER ENGINEERING")
-    const searchKeyword = loggedInDept.split(' ')[0]; 
+    const searchKeyword = loggedInDept.split(' ')[0]; // Extracts "COMPUTER" from "COMPUTER ENGINEERING"
 
     setActionLocks(prev => ({ ...prev, bulkUpload: true }));
-    const loadingToast = toast.loading(`Filtering data for ${searchKeyword} examiners...`);
+    const loadingToast = toast.loading(`Filtering data for ${searchKeyword} department...`);
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
-            // Defensive check for the library
+            // Defensive check for the library in the current build context
             if (!XLSX || !XLSX.utils) {
-                throw new Error("Library initialization failed.");
+                throw new Error("Excel library failed to initialize. Please refresh.");
             }
 
             const data = new Uint8Array(evt.target.result);
@@ -494,20 +493,21 @@ const handleFileUpload = (e) => {
                 // 🚀 STEP 1: Department Filtering Logic
                 const patternName = getVal('Pattern Name').toUpperCase();
                 
-                // Only process rows where Pattern Name contains the coordinator's department
-                // (e.g., if Pattern Name has "(COMPUTER)", only the Computer Coordinator picks it up)
+                // Only process rows where Pattern Name matches your department
+                // (e.g., if you are the Computer Coordinator, it only keeps rows with "(COMPUTER)")
                 if (!patternName.includes(searchKeyword)) return;
 
                 // 🚀 STEP 2: Data Cleaning
                 const rawName = getVal('Internal Examiner').trim();
                 if (!rawName || rawName === "" || rawName === "undefined") return;
 
+                // Handles format: (52201689059)-Patil Rupali Ashok
                 const cleanedName = rawName.includes(')-') ? rawName.split(')-')[1].trim() : rawName;
                 const mobile = getVal('Mobile No.').trim();
                 const fromDateStr = formatExcelDateSafely(getVal('From Date'));
                 const tillDateStr = formatExcelDateSafely(getVal('End Date'));
                 
-                // Smart Year Mapping based on Pattern Name
+                // Determine Year Scope from the Pattern Name string
                 let yearScope = "2nd Yr (Regular)";
                 if (patternName.includes("T.E.")) yearScope = "3rd Yr (Regular)";
                 if (patternName.includes("B.E.")) yearScope = "4th Yr (Regular)";
@@ -537,22 +537,22 @@ const handleFileUpload = (e) => {
             const finalData = Array.from(facultyMap.values());
 
             if (finalData.length === 0) {
-                toast.error(`No matching records for ${searchKeyword} department found.`, { id: loadingToast });
+                toast.error(`No records matching ${searchKeyword} department found in this file.`, { id: loadingToast });
                 setActionLocks(prev => ({ ...prev, bulkUpload: false }));
                 return;
             }
 
-            // 🚀 STEP 3: Optimized Upload
-            toast.loading(`Uploading ${finalData.length} records to server...`, { id: loadingToast });
+            // 🚀 STEP 3: Upload Filtered Data to Backend
+            toast.loading(`Syncing ${finalData.length} records to server...`, { id: loadingToast });
             const res = await API.post('/faculty/bulk-add', finalData);
             
-            toast.success(`Success! Successfully processed ${finalData.length} ${searchKeyword} records.`, { id: loadingToast });
+            toast.success(`Success! Successfully processed ${finalData.length} examiners for ${searchKeyword}.`, { id: loadingToast });
             fetchFaculty();
             if(fileInputRef.current) fileInputRef.current.value = ""; 
 
         } catch (err) {
-            console.error("Critical Processing Error:", err);
-            toast.error(err.message || "Library failed to initialize. Please refresh.", { id: loadingToast });
+            console.error("Critical Upload Error:", err);
+            toast.error(err.message || "Failed to process Excel. Please check file format.", { id: loadingToast });
         } finally {
             setActionLocks(prev => ({ ...prev, bulkUpload: false }));
         }

@@ -4,11 +4,11 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: ['xlsx'], // Forces Vite to pre-bundle the library
+    include: ['xlsx'], // Forces Vite to pre-bundle the library locally
   },
   build: {
     commonjsOptions: {
-      include: [/xlsx/, /node_modules/], // Ensures CommonJS compatibility on Vercel
+      include: [/xlsx/, /node_modules/], // Ensures compatibility during Vercel deployment
     },
   },
 });

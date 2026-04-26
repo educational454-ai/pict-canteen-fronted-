@@ -476,7 +476,7 @@ const handleFileUpload = async (e) => {
         });
 
         if (res.data.success) {
-        toast.success(Done! ${res.data.added} New, ${res.data.updated} Updated., { id: loadingToast });
+        toast.success(`Success! Processed ${res.data.total} records.`, { id: loadingToast });
         fetchFaculty();
         } else {
         // 🚨 Ye line bata degi ki mismatch kahan hai

@@ -476,7 +476,8 @@ const handleFileUpload = async (e) => {
         });
 
         if (res.data.success) {
-        toast.success(`Done! Added ${res.data.added} records.`, { id: loadingToast });
+        toast.success(Done! ${res.data.added} New, ${res.data.updated} Updated., { id: loadingToast });
+        fetchFaculty();
         } else {
         // 🚨 Ye line bata degi ki mismatch kahan hai
         toast.error(`Backend Message: ${res.data.message}`, { id: loadingToast, duration: 5000 });

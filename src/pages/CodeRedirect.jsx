@@ -19,14 +19,14 @@ const CodeRedirect = () => {
     // try to copy to clipboard (mobile browsers may prompt)
     if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(code).then(() => {
-        toast.success('Access code copied to clipboard');
+        toast.success('Access code copied to clipboard — please click Login to use it');
       }).catch(() => {
         // silent fail
       });
     }
 
-    // navigate to menu where the voucher will be prefilled
-    navigate('/menu', { replace: true });
+    // navigate to login page (do NOT auto-login) so examiners must press Login manually
+    navigate('/', { replace: true });
   }, [voucher, navigate]);
 
   return null;

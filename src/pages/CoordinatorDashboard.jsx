@@ -179,7 +179,7 @@ const CoordinatorDashboard = () => {
 
   const buildVoucherMessage = (member) => {
     const examCategory = member.academicYear || 'N/A';
-    return `*PICT EXAM PORTAL - CANTEEN VOUCHER*\n\nDear Prof. *${member.fullName}*,\n\nYou have been assigned as an examiner for the *${deptCode}* Department.\n\n*VOUCHER DETAILS:*\n• *Exam Category:* ${examCategory}\n• *Access Code:* ${member.voucherCode}\n• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}\n• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}\n\n*PORTAL LINK:*\nhttps://pict-canteen-fronted.vercel.app/\n\n_Please enter your access code at the portal link above to place orders._`;
+    return `*PICT EXAM PORTAL - CANTEEN VOUCHER*\n\nDear Prof. *${member.fullName}*,\n\nYou have been assigned as an examiner for the *${deptCode}* Department.\n\n*COPY ACCESS CODE (long-press and copy):*\n${member.voucherCode}\n\n*VOUCHER DETAILS:*\n• *Exam Category:* ${examCategory}\n• *Valid From:* ${new Date(member.validFrom).toLocaleDateString('en-GB')}\n• *Valid Until:* ${new Date(member.validTill).toLocaleDateString('en-GB')}\n\n*PORTAL LINK:*\nhttps://pict-canteen-fronted.vercel.app/\n\n_Use the copied access code to log in and place orders._\n\nAccess Code (plain): ${member.voucherCode}`;
   };
 
   const buildEmailVoucherMessage = (member) => {

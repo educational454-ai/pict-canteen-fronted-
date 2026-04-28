@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/react';
 
 import LoginPage from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
+import CodeRedirect from './pages/CodeRedirect';
 import CoordinatorDashboard from './pages/CoordinatorDashboard';
 import CanteenManagerDashboard from './pages/CanteenManagerDashboard';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
@@ -28,6 +29,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LoginPage />} />
           <Route path="/menu" element={<MenuPage />} />
+          <Route path="/code/:voucher" element={<CodeRedirect />} />
           
           <Route path="/coordinator" element={<ProtectedRoute allowedRoles={['COORDINATOR']}><CoordinatorDashboard /></ProtectedRoute>} />
           <Route path="/manager" element={<ProtectedRoute allowedRoles={['MANAGER']}><CanteenManagerDashboard /></ProtectedRoute>} />

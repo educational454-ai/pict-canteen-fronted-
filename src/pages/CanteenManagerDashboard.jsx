@@ -240,7 +240,7 @@ const handleMenuSubmit = async (e) => {
     e.preventDefault();
     if (actionLocks.savingMenu) return;
 
-    // 1. Validate against Price Limits
+    // 1. Validation check
     const maxAllowedPrice = categoryPriceLimits[menuForm.category];
     if (maxAllowedPrice && Number(menuForm.price) > maxAllowedPrice) {
         toast.error(`Max price for ${menuForm.category} is ₹${maxAllowedPrice}.`);
@@ -250,32 +250,34 @@ const handleMenuSubmit = async (e) => {
     setActionLocks(prev => ({ ...prev, savingMenu: true }));
 
     try {
-        // 2. Ensure all required fields are sent
+        // 2. Format the data properly before sending
         const payload = {
-            ...menuForm,
-            price: Number(menuForm.price), // Ensure price is a number
-            isAvailable: menuForm.isAvailable ?? true // Default to true if not set
+            itemName: menuForm.itemName.trim(),
+            category: menuForm.category,
+            price: Number(menuForm.price),
+            isAvailable: true // Ensure this required field is sent
         };
 
         if (editingItemId) {
             await API.put(`/menu/update/${editingItemId}`, payload);
-            toast.success("Item updated successfully!");
+            toast.success("Item updated successfully!"); 
         } else {
             await API.post('/menu/add', payload);
-            toast.success("New item added to menu!");
+            toast.success("New item added to menu!"); 
         }
 
-        // 3. Clean up UI state
+        // 3. UI Cleanup
         setIsMenuModalOpen(false);
-        // Reset to a VALID category from your categoryPriceLimits
-        setMenuForm({ itemName: '', category: 'Breakfast', price: '', isAvailable: true });
+        // Reset to 'Breakfast' instead of 'Snacks' to match your category list
+        setMenuForm({ itemName: '', category: 'Breakfast', price: '' });
         setEditingItemId(null);
         fetchMenuItems();
 
     } catch (err) {
-        // 4. Detailed Error Logging
-        console.error("Backend Error:", err.response?.data); 
-        toast.error(err.response?.data?.error || "Failed to save item.");
+        // 4. CRITICAL: Log the actual backend error message
+        console.error("Full Backend Error:", err.response?.data);
+        const serverError = err.response?.data?.error || err.response?.data?.message;
+        toast.error(serverError || "Failed to save item."); 
     } finally {
         setActionLocks(prev => ({ ...prev, savingMenu: false }));
     }

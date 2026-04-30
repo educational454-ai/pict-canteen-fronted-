@@ -7,10 +7,15 @@ import toast from 'react-hot-toast';
 const categorySchedules = {
   'Breakfast': { start: 7, end: 11, label: 'Available 7:00 AM - 11:00 AM' },
   'Beverages': { start: 8, end: 11, label: 'Available 8:00 AM - 11:00 AM' },
-  'Quick Bites': { start: 9, end: 16, label: 'Available 9:00 AM - 4:00 PM' },
-  'Fasting Specials (Upvas)': { start: 9, end: 15, label: 'Available 9:00 AM - 3:00 PM '},
-  'Lunch': { start: 12, end: 14, label: 'Available 12:00 PM - 2:00 PM' },
-  'Dessert': { start: 12, end: 16, label: 'Available 12:00 PM - 4:00 PM' }
+  'Quick Bites': { start: 7, end: 18, label: 'Available 7:00 AM - 6:30 PM' }, // Based on Ala-Carte timings
+  'Fasting Specials (Upvas)': { 
+    start: 7, 
+    end: 18, 
+    label: 'Available Mon, Tue, Thu, Sat', 
+    days: [1, 2, 4, 6] // 1=Mon, 2=Tue, 4=Thu, 6=Sat
+  },
+  'Lunch': { start: 12, end: 15, label: 'Lunch Items' },
+  'Dessert': { start: 7, end: 18, label: 'Available All Day' }
 };
 
 const MenuPage = () => {
@@ -112,10 +117,20 @@ const MenuPage = () => {
   const toggleSelection = (item) => {
     const category = item.category || 'Other';
     const schedule = categorySchedules[category];
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentDay = now.getDay();
+
+    // Time Validation
     const isTimeValid = schedule ? (currentHour >= schedule.start && currentHour < schedule.end) : true;
+  
+    // Day Validation (specifically for Upvas)
+    const isDayValid = schedule?.days ? schedule.days.includes(currentDay) : true;
 
-    if (item.isAvailable === false || !isTimeValid) return;
-
+    if (item.isAvailable === false || !isTimeValid || !isDayValid) {
+      if (!isDayValid) toast.error("This item is not available today.");
+      return;
+    }
     setSelections((prev) => {
       const currentSelections = { ...prev };
       if (currentSelections[category]?._id === item._id) {

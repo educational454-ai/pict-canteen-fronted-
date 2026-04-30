@@ -15,10 +15,12 @@ const getLocalYYYYMMDD = (dateObj = new Date()) => {
 };
 
 const categoryPriceLimits = {
+    'Breakfast': 40,
     'Beverages': 30,
-    'Snacks': 50,
-    'Dessert': 50,
-    'Lunch': 100
+    'Quick Bites': 50,
+    'Fasting Specials (Upvas)': 60,
+    'Lunch': 100,
+    'Dessert': 60
 };
 
 const getUniqueOrdersById = (orderList) => {
@@ -73,7 +75,7 @@ const CanteenManagerDashboard = () => {
   
   const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState(null);
-  const [menuForm, setMenuForm] = useState({ itemName: '', category: 'Snacks', price: '' });
+  const [menuForm, setMenuForm] = useState({ itemName: '', category: 'Breakfast', price: '' });
     const [actionLocks, setActionLocks] = useState({
             exportingPdf: false,
             processingOrderId: null,

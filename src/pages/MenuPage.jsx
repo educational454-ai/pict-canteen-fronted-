@@ -5,9 +5,12 @@ import { Utensils, LogOut, Trash2, CheckCircle, Ticket, X, UtensilsCrossed, Plus
 import toast from 'react-hot-toast';
 
 const categorySchedules = {
+  'Breakfast': { start: 7, end: 11, label: 'Available 7:00 AM - 11:00 AM' },
   'Beverages': { start: 8, end: 11, label: 'Available 8:00 AM - 11:00 AM' },
+  'Quick Bites': { start: 9, end: 16, label: 'Available 9:00 AM - 4:00 PM' },
+  'Fasting Specials (Upvas)': { start: 9, end: 15, label: 'Available 9:00 AM - 3:00 PM (Mon, Tue, Thu, Sat)', days: [1, 2, 4, 6] },// 1=Mon, 2=Tue, 4=Thu, 6=Sat 
   'Lunch': { start: 12, end: 14, label: 'Available 12:00 PM - 2:00 PM' },
-  'Snacks': { start: 8, end: 15, label: 'Available 8:00 AM - 3:00 PM' }
+  'Dessert': { start: 12, end: 16, label: 'Available 12:00 PM - 4:00 PM' }
 };
 
 const MenuPage = () => {

@@ -268,7 +268,6 @@ const handleMenuSubmit = async (e) => {
 
         // 3. UI Cleanup
         setIsMenuModalOpen(false);
-        // Reset to 'Breakfast' instead of 'Snacks' to match your category list
         setMenuForm({ itemName: '', category: 'Breakfast', price: '' });
         setEditingItemId(null);
         fetchMenuItems();

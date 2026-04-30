@@ -632,7 +632,7 @@ const CanteenManagerDashboard = () => {
                   <form onSubmit={handleMenuSubmit} className="space-y-5">
                       <input required type="text" placeholder="Item Name" value={menuForm.itemName} onChange={(e) => setMenuForm({...menuForm, itemName: e.target.value})} className="w-full p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all" />
                       <select value={menuForm.category} onChange={(e) => setMenuForm({...menuForm, category: e.target.value})} className="w-full p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all">
-                          <option value="Beverages">Beverages</option><option value="Snacks">Snacks</option><option value="Lunch">Lunch</option><option value="Dessert">Dessert</option>
+                          <option value="Breakfast">Breakfast</option> <option value="Beverages">Beverages</option> <option value="Quick Bites">Quick Bites</option> <option value="Fasting Specials (Upvas)">Fasting Specials (Upvas)</option> <option value="Lunch">Lunch</option> <option value="Dessert">Dessert</option>
                       </select>
                       <input required type="number" placeholder="Price" value={menuForm.price} onChange={(e) => setMenuForm({...menuForm, price: e.target.value})} className="w-full p-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all" />
                       <div className="flex gap-3 mt-8 pt-4 border-t border-slate-100">

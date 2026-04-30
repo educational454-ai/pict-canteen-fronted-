@@ -236,30 +236,50 @@ const CanteenManagerDashboard = () => {
         finally { setActionLocks(prev => ({ ...prev, processingOrderId: null })); }
   };
 
-  const handleMenuSubmit = async (e) => {
-      e.preventDefault();
-      if (actionLocks.savingMenu) return;
-      const maxAllowedPrice = categoryPriceLimits[menuForm.category];
-      if (maxAllowedPrice && Number(menuForm.price) > maxAllowedPrice) {
-          toast.error(`Max price for ${menuForm.category} is ₹${maxAllowedPrice}.`);
-          return; 
-      }
-      setActionLocks(prev => ({ ...prev, savingMenu: true }));
-      try {
-          if (editingItemId) {
-              await API.put(`/menu/update/${editingItemId}`, menuForm);
-              toast.success("Item updated successfully!"); 
-          } else {
-              await API.post('/menu/add', menuForm);
-              toast.success("New item added to menu!"); 
-          }
-          setIsMenuModalOpen(false);
-          setMenuForm({ itemName: '', category: 'Snacks', price: '' });
-          setEditingItemId(null);
-          fetchMenuItems();
-      } catch (err) { toast.error(err.response?.data?.error || "Failed to save item."); }
-      finally { setActionLocks(prev => ({ ...prev, savingMenu: false })); }
-  };
+const handleMenuSubmit = async (e) => {
+    e.preventDefault();
+    if (actionLocks.savingMenu) return;
+
+    // 1. Validate against Price Limits
+    const maxAllowedPrice = categoryPriceLimits[menuForm.category];
+    if (maxAllowedPrice && Number(menuForm.price) > maxAllowedPrice) {
+        toast.error(`Max price for ${menuForm.category} is ₹${maxAllowedPrice}.`);
+        return; 
+    }
+
+    setActionLocks(prev => ({ ...prev, savingMenu: true }));
+
+    try {
+        // 2. Ensure all required fields are sent
+        const payload = {
+            ...menuForm,
+            price: Number(menuForm.price), // Ensure price is a number
+            isAvailable: menuForm.isAvailable ?? true // Default to true if not set
+        };
+
+        if (editingItemId) {
+            await API.put(`/menu/update/${editingItemId}`, payload);
+            toast.success("Item updated successfully!");
+        } else {
+            await API.post('/menu/add', payload);
+            toast.success("New item added to menu!");
+        }
+
+        // 3. Clean up UI state
+        setIsMenuModalOpen(false);
+        // Reset to a VALID category from your categoryPriceLimits
+        setMenuForm({ itemName: '', category: 'Breakfast', price: '', isAvailable: true });
+        setEditingItemId(null);
+        fetchMenuItems();
+
+    } catch (err) {
+        // 4. Detailed Error Logging
+        console.error("Backend Error:", err.response?.data); 
+        toast.error(err.response?.data?.error || "Failed to save item.");
+    } finally {
+        setActionLocks(prev => ({ ...prev, savingMenu: false }));
+    }
+};
 
   const editMenuItem = (item) => {
       setEditingItemId(item._id);

@@ -595,7 +595,7 @@ const handleMenuSubmit = async (e) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-in fade-in duration-300">
                     <div className="col-span-full flex justify-between mb-4 items-center">
                         <h2 className="text-xl font-black">Menu Items</h2>
-                        <button onClick={() => { setMenuForm({itemName:'', category:'Snacks', price:''}); setEditingItemId(null); setIsMenuModalOpen(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg active:scale-95"><Plus size={18} /> Add New Item</button>
+                        <button onClick={() => { setMenuForm({itemName:'', category:'Breakfast', price:''}); setEditingItemId(null); setIsMenuModalOpen(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg active:scale-95"><Plus size={18} /> Add New Item</button>
                     </div>
                     {menuItems.map(item => (
                         <div key={item._id} className={`border-2 p-5 rounded-2xl flex justify-between bg-white group transition-all ${item.isAvailable !== false ? 'hover:border-blue-200 shadow-sm' : 'opacity-60 bg-slate-50'}`}>

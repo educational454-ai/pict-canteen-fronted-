@@ -9,12 +9,12 @@ const categorySchedules = {
   'Beverages': { start: 8, end: 11, label: 'Available 8:00 AM - 11:00 AM' },
   'Quick Bites': { start: 7, end: 18, label: 'Available 7:00 AM - 6:30 PM' }, // Based on Ala-Carte timings
   'Fasting Specials (Upvas)': { 
-    start: 7, 
-    end: 18, 
+    start: 8, 
+    end: 16, 
     label: 'Available Mon, Tue, Thu, Sat', 
     days: [1, 2, 4, 6] // 1=Mon, 2=Tue, 4=Thu, 6=Sat
   },
-  'Lunch': { start: 12, end: 15, label: 'Lunch Items' },
+  'Lunch': { start: 12, end: 15, label: 'Available 12:00 PM - 3:00 PM' },
   'Dessert': { start: 7, end: 18, label: 'Available All Day' }
 };
 

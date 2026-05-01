@@ -592,23 +592,55 @@ const handleMenuSubmit = async (e) => {
               )}
 
               {activeTab === 'menu' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-in fade-in duration-300">
-                    <div className="col-span-full flex justify-between mb-4 items-center">
-                        <h2 className="text-xl font-black">Menu Items</h2>
-                        <button onClick={() => { setMenuForm({itemName:'', category:'Breakfast', price:''}); setEditingItemId(null); setIsMenuModalOpen(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg active:scale-95"><Plus size={18} /> Add New Item</button>
-                    </div>
-                    {menuItems.map(item => (
-                        <div key={item._id} className={`border-2 p-5 rounded-2xl flex justify-between bg-white group transition-all ${item.isAvailable !== false ? 'hover:border-blue-200 shadow-sm' : 'opacity-60 bg-slate-50'}`}>
-                            <div><span className="text-[9px] font-black text-blue-600 uppercase">{item.category}</span><h3 className="font-black text-lg">{item.itemName}</h3><p className="font-black text-slate-500">₹{item.price}</p></div>
-                            <div className="flex flex-col gap-2">
-                                <button disabled={!!actionLocks.togglingItemId || !!actionLocks.deletingMenuItemId || actionLocks.savingMenu} onClick={() => toggleAvailability(item)} className={`p-2 rounded-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed ${item.isAvailable !== false ? 'border text-red-500 hover:bg-red-50' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}>{actionLocks.togglingItemId === item._id ? <Loader2 size={18} className="animate-spin"/> : (item.isAvailable !== false ? <PowerOff size={18}/> : <Power size={18}/>)}</button>
-                                <button onClick={() => editMenuItem(item)} className="p-2 border rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50"><Edit size={18}/></button>
-                                <button disabled={!!actionLocks.deletingMenuItemId || !!actionLocks.togglingItemId || actionLocks.savingMenu} onClick={() => deleteMenuItem(item._id)} className="p-2 border rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed">{actionLocks.deletingMenuItemId === item._id ? <Loader2 size={18} className="animate-spin"/> : <Trash2 size={18}/>}</button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-              )}
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 animate-in fade-in duration-300">
+      <div className="col-span-full flex justify-between mb-2 items-center">
+          <h2 className="text-lg font-black">Menu Items ({menuItems.length})</h2>
+          <button 
+            onClick={() => { setMenuForm({itemName:'', category:'Breakfast', price:''}); setEditingItemId(null); setIsMenuModalOpen(true); }} 
+            className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-md active:scale-95 transition-transform"
+          >
+            <Plus size={16} /> Add Item
+          </button>
+      </div>
+
+      {menuItems.map(item => (
+          <div 
+            key={item._id} 
+            className={`border-2 p-3 rounded-xl flex flex-col justify-between bg-white group transition-all ${item.isAvailable !== false ? 'hover:border-blue-200 shadow-sm' : 'opacity-60 bg-slate-50'}`}
+          >
+              <div className="flex justify-between items-start mb-3">
+                  <div className="overflow-hidden">
+                      <span className="text-[8px] font-black text-blue-500 uppercase tracking-tighter">{item.category}</span>
+                      <h3 className="font-black text-base truncate pr-2" title={item.itemName}>{item.itemName}</h3>
+                      <p className="font-bold text-sm text-slate-600">₹{item.price}</p>
+                  </div>
+                  
+                  {/* Actions moved to a compact row at the top-right or bottom */}
+                  <div className="flex gap-1">
+                      <button 
+                        disabled={!!actionLocks.togglingItemId || !!actionLocks.deletingMenuItemId || actionLocks.savingMenu} 
+                        onClick={() => toggleAvailability(item)} 
+                        className={`p-1.5 rounded-lg transition-all ${item.isAvailable !== false ? 'text-red-500 hover:bg-red-50' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
+                      >
+                        {actionLocks.togglingItemId === item._id ? <Loader2 size={14} className="animate-spin"/> : (item.isAvailable !== false ? <PowerOff size={14}/> : <Power size={14}/>)}
+                      </button>
+                  </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-50">
+                  <button onClick={() => editMenuItem(item)} className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={14}/></button>
+                  <button 
+                    disabled={!!actionLocks.deletingMenuItemId || !!actionLocks.togglingItemId || actionLocks.savingMenu} 
+                    onClick={() => deleteMenuItem(item._id)} 
+                    className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                  >
+                    {actionLocks.deletingMenuItemId === item._id ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14}/>}
+                  </button>
+              </div>
+          </div>
+      ))}
+  </div>
+)}
 
               {activeTab === 'feedback' && (
                   <div className="animate-in fade-in duration-300">

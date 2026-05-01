@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import { 
   Utensils, LogOut, Trash2, CheckCircle, Ticket, X, UtensilsCrossed, Plus, 
-  Mail, ChevronRight, Check, Clock, History, Star, User, ChevronDown, ChevronUp 
+  Mail, ChevronRight, Check, Clock, History, Star, User, ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,15 +24,7 @@ const categorySchedules = {
 const MenuPage = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem('activeMenuTab') || 'menu');
-  
-  // 🚀 IDEA 4: Accordion State (Smart Exclusive Mode)
-  // Null matlab sab band, ya fir hum current time ke hisaab se pehli category khol sakte hain.
   const [openCategory, setOpenCategory] = useState(null);
-
-  useEffect(() => {
-      sessionStorage.setItem('activeMenuTab', activeTab);
-  }, [activeTab]);
-  
   const [menuItems, setMenuItems] = useState([]); 
   const [myGuests, setMyGuests] = useState([]); 
   const [myOrders, setMyOrders] = useState([]); 
@@ -76,7 +68,6 @@ const MenuPage = () => {
         if (Array.isArray(res.data)) setMenuItems(res.data);
       } catch (err) { console.error("Menu fetch error", err); }
     };
-
     fetchMenu();
     fetchMyOrders();
     if (userRole === 'FACULTY') {
@@ -85,6 +76,10 @@ const MenuPage = () => {
     }
   }, [voucher, userRole, navigate]);
 
+  useEffect(() => {
+    sessionStorage.setItem('activeMenuTab', activeTab);
+  }, [activeTab]);
+
   const fetchFacultyLimits = async () => {
       try {
           const res = await API.get(`/guests/profile/${voucher}`);
@@ -92,21 +87,21 @@ const MenuPage = () => {
           const max = new Date(res.data.validTill).toISOString().split('T')[0];
           setFacultyLimits({ minDate: min, maxDate: max });
           setGuestFormData(prev => ({...prev, validFrom: min, validTill: max}));
-      } catch(err) { console.error("Failed to load faculty limits", err); }
+      } catch(err) { console.error("Failed limits", err); }
   }
 
   const fetchMyGuests = async () => {
       try {
           const res = await API.get(`/guests/faculty/${voucher}`);
-          if (Array.isArray(res.data)) setMyGuests(res.data);
-      } catch (err) { console.error("Guest fetch error", err); }
+          setMyGuests(res.data);
+      } catch (err) { console.error(err); }
   };
 
   const fetchMyOrders = async () => {
       try {
           const res = await API.get(`/orders/history/${voucher}`);
-          if (Array.isArray(res.data)) setMyOrders(res.data);
-      } catch (err) { console.error("Order history fetch error", err); }
+          setMyOrders(res.data);
+      } catch (err) { console.error(err); }
   };
 
   const toggleSelection = (item) => {
@@ -115,33 +110,55 @@ const MenuPage = () => {
     const now = new Date();
     const currentHour = now.getHours();
     const currentDay = now.getDay();
-
     const isTimeValid = schedule ? (currentHour >= schedule.start && currentHour < schedule.end) : true;
     const isDayValid = schedule?.days ? schedule.days.includes(currentDay) : true;
 
     if (item.isAvailable === false || !isTimeValid || !isDayValid) {
-      if (!isDayValid) toast.error("This item is not available today.");
+      if (!isDayValid) toast.error("Not available today.");
       return;
     }
-
-    // 🚀 CART PERSISTENCE: State is kept even if accordion closes
     setSelections((prev) => {
-      const currentSelections = { ...prev };
-      if (currentSelections[category]?._id === item._id) {
-        delete currentSelections[category];
-      } else {
-        currentSelections[category] = item;
-      }
-      return currentSelections;
+      const current = { ...prev };
+      if (current[category]?._id === item._id) delete current[category];
+      else current[category] = item;
+      return current;
     });
   };
 
-  const removeSelection = (category) => {
-    setSelections((prev) => {
-      const currentSelections = { ...prev };
-      delete currentSelections[category];
-      return currentSelections;
-    });
+  const handleCheckout = async () => {
+    if (actionLocks.checkout || Object.keys(selections).length === 0) return;
+    setActionLocks(prev => ({ ...prev, checkout: true }));
+    try {
+      await API.post('/orders/place', {
+        voucherCode: selectedVoucher, 
+        items: Object.values(selections).map(i => ({ itemName: i.itemName, category: i.category, quantity: 1, price: i.price })),
+        totalAmount: Object.values(selections).reduce((acc, i) => acc + i.price, 0)
+      });
+      setOrderSuccess(true);
+      setSelections({});
+      toast.success("Order Placed!"); 
+      fetchMyOrders(); 
+      setTimeout(() => setOrderSuccess(false), 3000);
+    } catch (err) { toast.error("Order failed."); } 
+    finally { setActionLocks(prev => ({ ...prev, checkout: false })); }
+  };
+
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault();
+    setActionLocks(prev => ({ ...prev, feedback: true }));
+    try {
+        await API.put(`/orders/feedback/${feedbackData.orderId}`, { rating: feedbackData.rating, feedbackText: feedbackData.text });
+        toast.success("Thanks for feedback!"); setIsFeedbackModalOpen(false); fetchMyOrders(); 
+    } catch (err) { toast.error("Failed."); } finally { setActionLocks(prev => ({ ...prev, feedback: false })); }
+  };
+
+  const handleCancelOrder = async (orderId) => {
+      if (!window.confirm('Cancel order?')) return;
+      setActionLocks(prev => ({ ...prev, cancelingOrderId: orderId }));
+      try {
+          await API.delete(`/orders/cancel/${orderId}`, { data: { voucherCode: voucher } });
+          toast.success('Canceled.'); fetchMyOrders();
+      } catch (err) { toast.error('Error.'); } finally { setActionLocks(prev => ({ ...prev, cancelingOrderId: null })); }
   };
 
   const groupedMenu = menuItems.reduce((acc, item) => {
@@ -151,75 +168,6 @@ const MenuPage = () => {
       return acc;
   }, {});
 
-  // 🚀 SMART EXCLUSIVE INTERACTION: Toggles open/close
-  const toggleAccordion = (category) => {
-    setOpenCategory(prev => prev === category ? null : category);
-  };
-
-  const selectedItemsList = Object.values(selections);
-  const totalAmount = selectedItemsList.reduce((acc, item) => acc + (item.price || 0), 0);
-
-  const handleCheckout = async () => {
-    if (actionLocks.checkout || selectedItemsList.length === 0) return;
-    const exactHour = new Date().getHours();
-    for (const item of selectedItemsList) {
-        const schedule = categorySchedules[item.category];
-        if (schedule && (exactHour < schedule.start || exactHour >= schedule.end)) {
-            toast.error(`Checkout failed: ${item.category} time expired.`); 
-            return;
-        }
-    }
-
-    setActionLocks(prev => ({ ...prev, checkout: true }));
-    try {
-      await API.post('/orders/place', {
-        voucherCode: selectedVoucher, 
-        items: selectedItemsList.map(i => ({ itemName: i.itemName, category: i.category, quantity: 1, price: i.price })),
-        totalAmount: totalAmount
-      });
-      setOrderSuccess(true);
-      setSelections({});
-      toast.success("Order Placed!"); 
-      fetchMyOrders(); 
-      setTimeout(() => setOrderSuccess(false), 3000);
-    } catch (err) { toast.error(err.response?.data?.error || "Order failed."); } 
-    finally { setActionLocks(prev => ({ ...prev, checkout: false })); }
-  };
-
-  // Remaining handlers (Guests, Feedback, Cancel) remain the same...
-  const handleAddGuest = async (e) => {
-    e.preventDefault();
-    if (actionLocks.addGuest) return;
-    setActionLocks(prev => ({ ...prev, addGuest: true }));
-    try {
-        const res = await API.post('/guests/add', { ...guestFormData, facultyVoucher: voucher });
-        toast.success(`Code: ${res.data.voucher}`); 
-        setIsGuestModalOpen(false);
-        setGuestFormData({ guestName: '', email: '', validFrom: facultyLimits.minDate, validTill: facultyLimits.maxDate });
-        fetchMyGuests(); 
-    } catch (err) { toast.error("Failed to add guest"); } finally { setActionLocks(prev => ({ ...prev, addGuest: false })); }
-  };
-
-  const handleFeedbackSubmit = async (e) => {
-    e.preventDefault();
-    if (actionLocks.feedback) return;
-    setActionLocks(prev => ({ ...prev, feedback: true }));
-    try {
-        await API.put(`/orders/feedback/${feedbackData.orderId}`, { rating: feedbackData.rating, feedbackText: feedbackData.text });
-        toast.success("Feedback submitted!"); setIsFeedbackModalOpen(false); fetchMyOrders(); 
-    } catch (err) { toast.error("Failed."); } finally { setActionLocks(prev => ({ ...prev, feedback: false })); }
-  };
-
-  const handleCancelOrder = async (orderId) => {
-      if (actionLocks.cancelingOrderId) return;
-      if (!window.confirm('Cancel order?')) return;
-      setActionLocks(prev => ({ ...prev, cancelingOrderId: orderId }));
-      try {
-          await API.delete(`/orders/cancel/${orderId}`, { data: { voucherCode: voucher } });
-          toast.success('Canceled.'); fetchMyOrders();
-      } catch (err) { toast.error('Failed.'); } finally { setActionLocks(prev => ({ ...prev, cancelingOrderId: null })); }
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-800">
       
@@ -227,124 +175,96 @@ const MenuPage = () => {
       <header className="bg-[#0f2040] text-white shadow-md z-30 sticky top-0">
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
             <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white/10 rounded border border-white/20 flex items-center justify-center"><span className="font-bold text-blue-300">P</span></div>
+                <div className="w-8 h-8 bg-white/10 rounded border border-white/20 flex items-center justify-center font-bold text-blue-300">P</div>
                 <div>
-                    <h1 className="text-base font-bold uppercase">PICT Canteen</h1>
-                    <p className="text-[10px] text-slate-300">Welcome, {userName} <span className="ml-1 bg-blue-600/30 px-1 rounded">{userRole}</span></p>
+                    <h1 className="text-base font-bold uppercase tracking-tight">PICT Canteen</h1>
+                    <p className="text-[10px] text-slate-300">Welcome, {userName}</p>
                 </div>
             </div>
             <div className="flex gap-2">
-                {userRole === 'FACULTY' && <button onClick={() => setIsGuestModalOpen(true)} className="bg-purple-600 px-3 py-1.5 rounded-lg text-xs font-bold"><Ticket size={14} className="inline mr-1"/> Guest Pass</button>}
-                <button onClick={() => { sessionStorage.clear(); navigate('/'); }} className="border border-slate-500 px-3 py-1.5 rounded-lg text-xs font-bold"><LogOut size={14} className="inline mr-1"/> Logout</button>
+                {userRole === 'FACULTY' && <button onClick={() => setIsGuestModalOpen(true)} className="bg-purple-600 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95"><Ticket size={14}/> Guest Pass</button>}
+                <button onClick={() => { sessionStorage.clear(); navigate('/'); }} className="border border-slate-500 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors hover:bg-red-600 hover:border-red-600"><LogOut size={14}/></button>
             </div>
         </div>
       </header>
 
       {/* TABS */}
-      <div className="bg-white border-b sticky top-[56px] z-20 overflow-x-auto no-scrollbar shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 flex gap-6">
-              <button onClick={() => setActiveTab('menu')} className={`py-3 text-xs font-bold border-b-2 transition-all ${activeTab === 'menu' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400'}`}>MENU</button>
-              {userRole === 'FACULTY' && <button onClick={() => setActiveTab('guests')} className={`py-3 text-xs font-bold border-b-2 transition-all ${activeTab === 'guests' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-400'}`}>GUEST PASSES</button>}
-              <button onClick={() => setActiveTab('history')} className={`py-3 text-xs font-bold border-b-2 transition-all ${activeTab === 'history' ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-400'}`}>HISTORY</button>
+      <div className="bg-white border-b sticky top-[56px] z-20 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 flex gap-8 overflow-x-auto no-scrollbar">
+              <button onClick={() => setActiveTab('menu')} className={`py-4 text-xs font-black border-b-2 transition-all tracking-widest ${activeTab === 'menu' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400'}`}>MENU</button>
+              {userRole === 'FACULTY' && <button onClick={() => setActiveTab('guests')} className={`py-4 text-xs font-black border-b-2 transition-all tracking-widest ${activeTab === 'guests' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-400'}`}>GUESTS</button>}
+              <button onClick={() => setActiveTab('history')} className={`py-4 text-xs font-black border-b-2 transition-all tracking-widest ${activeTab === 'history' ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-400'}`}>HISTORY & FEEDBACK</button>
           </div>
       </div>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 flex flex-col lg:flex-row gap-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 lg:p-8 flex flex-col lg:flex-row gap-8">
           
-          {/* TAB 1: MENU (Accordion Layout) */}
           {activeTab === 'menu' && (
             <>
-              <div className="flex-1 space-y-3">
-                {Object.entries(groupedMenu).map(([category, items]) => {
-                  const schedule = categorySchedules[category];
-                  const isTimeValid = schedule ? (currentHour >= schedule.start && currentHour < schedule.end) : true;
-                  const isOpen = openCategory === category;
-                  const selectedInCategory = selections[category];
+              <div className="flex-1 space-y-4">
+                {Object.entries(groupedMenu).map(([category, items]) => (
+                  <div key={category} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <button 
+                      onClick={() => setOpenCategory(openCategory === category ? null : category)}
+                      className="w-full flex justify-between items-center p-4 bg-white hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex flex-col items-start">
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-black text-slate-700 uppercase tracking-tighter text-sm">{category}</h3>
+                            {selections[category] && <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>}
+                        </div>
+                        <span className="text-[9px] font-bold text-slate-400">{categorySchedules[category]?.label || 'Available'}</span>
+                      </div>
+                      {openCategory === category ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
+                    </button>
 
-                  return (
-                    <div key={category} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm transition-all">
-                      {/* 🚀 ACCORDION HEADER */}
-                      <button 
-                        onClick={() => toggleAccordion(category)}
-                        className={`w-full flex justify-between items-center p-4 text-left transition-colors ${isOpen ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`}
-                      >
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-black text-slate-700 uppercase tracking-tight text-sm">{category}</h3>
-                            {selectedInCategory && <span className="bg-blue-600 w-2 h-2 rounded-full animate-pulse" title="Item Selected"></span>}
+                    <div className={`transition-all duration-300 ${openCategory === category ? 'max-h-[1000px] border-t p-3' : 'max-h-0 overflow-hidden opacity-0'}`}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {items.map(item => (
+                          <div 
+                            key={item._id} 
+                            onClick={() => toggleSelection(item)}
+                            className={`p-3 rounded-lg border-2 flex justify-between items-center cursor-pointer transition-all ${selections[category]?._id === item._id ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-slate-200'}`}
+                          >
+                            <div className="overflow-hidden">
+                              <p className="font-bold text-sm truncate">{item.itemName}</p>
+                              <p className="text-sm font-black text-slate-500">₹{item.price}</p>
+                            </div>
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selections[category]?._id === item._id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-300'}`}>
+                              <Check size={14}/>
+                            </div>
                           </div>
-                          {schedule && <span className={`text-[9px] font-bold mt-0.5 ${isTimeValid ? 'text-emerald-500' : 'text-orange-400'}`}>{schedule.label}</span>}
-                        </div>
-                        {isOpen ? <ChevronUp className="text-slate-400" size={18}/> : <ChevronDown className="text-slate-400" size={18}/>}
-                      </button>
-
-                      {/* 🚀 ACCORDION CONTENT */}
-                      <div className={`transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[1000px] opacity-100 border-t' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-                        <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white">
-                          {items.map((item) => {
-                            const isAvailable = (item.isAvailable !== false) && isTimeValid; 
-                            const isSelected = selections[category]?._id === item._id;
-                            return (
-                              <div 
-                                key={item._id} 
-                                onClick={() => toggleSelection(item)}
-                                className={`p-3 rounded-lg border flex justify-between items-center transition-all ${
-                                  !isAvailable ? 'bg-slate-50 opacity-60' :
-                                  isSelected ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-400' : 'bg-white hover:border-blue-200'
-                                }`}
-                              >
-                                <div>
-                                  <h4 className="font-bold text-sm text-slate-800">{item.itemName}</h4>
-                                  <p className="text-sm font-black text-slate-500">₹{item.price}</p>
-                                </div>
-                                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                  {isSelected ? <Check size={14}/> : <Plus size={14}/>}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        ))}
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
 
-              {/* CART SIDEBAR (PERSISTENT) */}
               <div className="w-full lg:w-80 shrink-0">
-                <div className="bg-white p-5 rounded-xl border shadow-sm sticky top-40">
-                  {userRole === 'FACULTY' && (
-                    <div className="mb-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Voucher Selection</p>
-                      <select value={selectedVoucher} onChange={(e) => setSelectedVoucher(e.target.value)} className="w-full p-2 border rounded-lg font-bold text-sm bg-slate-50">
-                        <option value={voucher}>My Voucher</option>
-                        {myGuests.filter(g => new Date() <= new Date(g.validTill) && g.isActive).map(g => <option key={g._id} value={g.voucherCode}>{g.guestName}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  <h2 className="font-black text-slate-800 mb-4 flex items-center gap-2"><Utensils size={18}/> Your Cart</h2>
-                  {orderSuccess && <div className="mb-3 p-2 bg-green-50 text-green-600 text-[10px] font-bold rounded border border-green-100 uppercase text-center">Order Confirmed!</div>}
-                  <div className="space-y-2 mb-4">
-                    {selectedItemsList.length === 0 ? <p className="text-center text-slate-400 text-xs py-4">Cart is empty</p> : 
-                      selectedItemsList.map(item => (
-                        <div key={item._id} className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
-                          <span className="text-xs font-bold truncate pr-2">{item.itemName}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-black">₹{item.price}</span>
-                            <button onClick={() => removeSelection(item.category)} className="text-red-400"><Trash2 size={14}/></button>
-                          </div>
+                <div className="bg-white p-6 rounded-2xl border shadow-xl sticky top-32">
+                  <h2 className="font-black text-lg mb-4 flex items-center gap-2 border-b pb-3"><Utensils size={20}/> Your Cart</h2>
+                  {orderSuccess && <div className="mb-4 p-2 bg-green-50 text-green-600 text-[10px] font-bold rounded border border-green-100 text-center">ORDER SUCCESSFUL!</div>}
+                  
+                  <div className="space-y-3 mb-6">
+                    {Object.values(selections).length === 0 ? <p className="text-center text-slate-400 text-xs py-10 italic">Cart is empty</p> : 
+                      Object.values(selections).map(item => (
+                        <div key={item._id} className="flex justify-between items-center animate-in fade-in slide-in-from-right-2">
+                          <span className="text-xs font-bold truncate max-w-[150px]">{item.itemName}</span>
+                          <span className="text-xs font-black text-blue-600">₹{item.price}</span>
                         </div>
                       ))
                     }
                   </div>
-                  {totalAmount > 0 && (
-                    <div className="pt-3 border-t">
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-xs font-bold text-slate-400 uppercase">Total</span>
-                        <span className="text-lg font-black text-blue-600">₹{totalAmount}</span>
+
+                  {Object.keys(selections).length > 0 && (
+                    <div className="border-t pt-4">
+                      <div className="flex justify-between items-center mb-6">
+                        <span className="text-xs font-black text-slate-400 uppercase">Total</span>
+                        <span className="text-2xl font-black text-slate-800">₹{Object.values(selections).reduce((a,b) => a+b.price, 0)}</span>
                       </div>
-                      <button onClick={handleCheckout} disabled={actionLocks.checkout} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all disabled:opacity-50">
-                        {actionLocks.checkout ? "Wait..." : "Confirm Order"}
+                      <button onClick={handleCheckout} disabled={actionLocks.checkout} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-sm shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all">
+                        {actionLocks.checkout ? "PLACING ORDER..." : "CONFIRM ORDER"}
                       </button>
                     </div>
                   )}
@@ -353,43 +273,64 @@ const MenuPage = () => {
             </>
           )}
 
-          {/* OTHER TABS (History & Guest Table) remain essentially same but styled slightly for the new theme */}
           {activeTab === 'guests' && (
-             <div className="w-full bg-white rounded-xl border shadow-sm overflow-hidden animate-in fade-in">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b">
-                    <tr><th className="p-4">Guest</th><th className="p-4">Code</th><th className="p-4">Validity</th><th className="p-4 text-center">Status</th></tr>
-                  </thead>
-                  <tbody className="divide-y text-sm">
-                    {myGuests.map(g => (
-                      <tr key={g._id} className="hover:bg-slate-50">
-                        <td className="p-4 font-bold">{g.guestName}</td>
-                        <td className="p-4 font-mono font-bold text-purple-600">{g.voucherCode}</td>
-                        <td className="p-4 text-xs">{new Date(g.validTill).toLocaleDateString()}</td>
-                        <td className="p-4 text-center">{new Date() > new Date(g.validTill) ? 'Expired' : 'Active'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+             <div className="w-full bg-white rounded-2xl border shadow-sm overflow-hidden animate-in fade-in">
+                <div className="p-6 border-b bg-slate-50/50"><h2 className="font-black text-lg">Active Guest Passes</h2></div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">
+                        <tr><th className="p-5">Guest Name</th><th className="p-5">Voucher Code</th><th className="p-5">Validity</th><th className="p-5 text-center">Status</th></tr>
+                      </thead>
+                      <tbody className="divide-y text-sm">
+                        {myGuests.map(g => (
+                          <tr key={g._id} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-5 font-bold text-slate-700">{g.guestName}</td>
+                            <td className="p-5 font-mono font-bold text-purple-600 bg-purple-50/30">{g.voucherCode}</td>
+                            <td className="p-5 font-medium text-slate-500">{new Date(g.validTill).toLocaleDateString('en-GB')}</td>
+                            <td className="p-5 text-center">{new Date() > new Date(g.validTill) ? <span className="text-red-500 font-bold bg-red-50 px-2 py-1 rounded">Expired</span> : <span className="text-green-600 font-bold bg-green-50 px-2 py-1 rounded">Active</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                </div>
              </div>
           )}
 
           {activeTab === 'history' && (
-             <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-bottom-2">
-                {myOrders.map(order => (
-                  <div key={order._id} className="bg-white p-4 rounded-xl border shadow-sm flex flex-col justify-between">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">{new Date(order.createdAt).toLocaleDateString()}</span>
-                      <span className="text-xs font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase">{order.status}</span>
+             <div className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
+                {myOrders.length === 0 ? (
+                  <div className="col-span-full py-20 text-center text-slate-400 italic">No order history found.</div>
+                ) : myOrders.map(order => (
+                  <div key={order._id} className="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-sm flex flex-col justify-between hover:border-orange-200 transition-all">
+                    <div>
+                      <div className="flex justify-between items-start mb-4">
+                        <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded uppercase tracking-tighter">{new Date(order.createdAt).toLocaleDateString('en-GB')}</span>
+                        <span className={`text-[10px] font-black px-2 py-1 rounded uppercase ${order.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{order.status}</span>
+                      </div>
+                      <div className="space-y-1 mb-6">
+                        {order.items.map((i, idx) => <p key={idx} className="text-sm font-bold text-slate-800 flex justify-between">{i.itemName} <span className="text-slate-400">x{i.quantity}</span></p>)}
+                      </div>
                     </div>
-                    <div className="mb-4">
-                      {order.items.map((i, idx) => <p key={idx} className="text-sm font-bold">{i.itemName} <span className="text-slate-400">x{i.quantity}</span></p>)}
-                    </div>
-                    <div className="flex justify-between items-center pt-3 border-t">
-                      <span className="font-black text-slate-700">₹{order.totalAmount}</span>
-                      {order.status !== 'Completed' && (
-                         <button onClick={() => handleCancelOrder(order._id)} className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors">Cancel</button>
-                      )}
+                    <div className="pt-4 border-t flex justify-between items-center">
+                      <span className="font-black text-lg text-slate-800">₹{order.totalAmount}</span>
+                      <div className="flex gap-2">
+                        {order.status === 'Completed' && !order.rating && (
+                          <button 
+                            onClick={() => { setFeedbackData({ orderId: order._id, rating: 5, text: '' }); setIsFeedbackModalOpen(true); }}
+                            className="text-[10px] font-black bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-1 shadow-md shadow-orange-100"
+                          >
+                            <Star size={12} fill="white"/> FEEDBACK
+                          </button>
+                        )}
+                        {order.rating && (
+                          <div className="flex text-orange-400 gap-0.5">
+                            {[...Array(order.rating)].map((_,i) => <Star key={i} size={14} fill="currentColor"/>)}
+                          </div>
+                        )}
+                        {order.status !== 'Completed' && (
+                           <button onClick={() => handleCancelOrder(order._id)} className="text-[10px] font-black text-red-500 bg-red-50 px-3 py-2 rounded-lg border border-red-100 hover:bg-red-100">CANCEL</button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -397,45 +338,41 @@ const MenuPage = () => {
           )}
       </main>
 
-      {/* MODALS (Guest & Feedback) - Copying from your existing code structure */}
-      {isGuestModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-5">
-                <h2 className="text-lg font-bold">New Guest Pass</h2>
-                <button onClick={() => setIsGuestModalOpen(false)} className="text-slate-400 bg-slate-100 p-1 rounded-md"><X size={16}/></button>
-            </div>
-            <form onSubmit={handleAddGuest} className="space-y-4">
-              <input required type="text" placeholder="Guest Name" value={guestFormData.guestName} onChange={(e) => setGuestFormData({...guestFormData, guestName: e.target.value})} className="w-full p-3 border rounded-lg outline-none focus:border-purple-500 text-sm" />
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">From</label>
-                  <input required type="date" min={facultyLimits.minDate} max={facultyLimits.maxDate} value={guestFormData.validFrom} onChange={(e) => setGuestFormData({...guestFormData, validFrom: e.target.value})} className="w-full p-2 border rounded-lg text-xs" />
-                </div>
-                <div className="flex-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Till</label>
-                  <input required type="date" min={facultyLimits.minDate} max={facultyLimits.maxDate} value={guestFormData.validTill} onChange={(e) => setGuestFormData({...guestFormData, validTill: e.target.value})} className="w-full p-2 border rounded-lg text-xs" />
-                </div>
-              </div>
-              <button type="submit" disabled={actionLocks.addGuest} className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-all">Generate Pass</button>
-            </form>
-          </div>
-        </div>
-      )}
-
+      {/* FEEDBACK MODAL */}
       {isFeedbackModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in duration-200">
-            <h2 className="text-xl font-bold mb-4">How was it?</h2>
-            <div className="flex justify-center gap-2 mb-6">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in zoom-in">
+            <h2 className="text-xl font-black mb-2 text-center">How was your meal?</h2>
+            <p className="text-slate-400 text-xs text-center mb-6">Your feedback helps us improve PICT Canteen.</p>
+            <div className="flex justify-center gap-3 mb-8">
               {[1, 2, 3, 4, 5].map((star) => (
-                <button key={star} onClick={() => setFeedbackData({...feedbackData, rating: star})} className="hover:scale-110 transition-transform">
-                  <Star size={32} fill={star <= feedbackData.rating ? "#f59e0b" : "none"} className={star <= feedbackData.rating ? "text-yellow-500" : "text-slate-300"} />
+                <button key={star} onClick={() => setFeedbackData({...feedbackData, rating: star})} className="hover:scale-125 transition-transform duration-200">
+                  <Star size={32} fill={star <= feedbackData.rating ? "#f59e0b" : "none"} className={star <= feedbackData.rating ? "text-yellow-500" : "text-slate-200"} />
                 </button>
               ))}
             </div>
-            <textarea rows="3" placeholder="Any comments?" value={feedbackData.text} onChange={(e) => setFeedbackData({...feedbackData, text: e.target.value})} className="w-full p-3 bg-slate-50 border rounded-xl mb-4 text-sm resize-none outline-none focus:border-orange-500"></textarea>
-            <button onClick={handleFeedbackSubmit} className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-orange-100">Submit Review</button>
+            <textarea rows="3" placeholder="Tell us more about the taste..." value={feedbackData.text} onChange={(e) => setFeedbackData({...feedbackData, text: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl mb-6 text-sm outline-none focus:border-orange-500 focus:bg-white transition-all"></textarea>
+            <div className="flex gap-3">
+               <button onClick={() => setIsFeedbackModalOpen(false)} className="flex-1 py-3 font-black text-slate-400 text-sm">CLOSE</button>
+               <button onClick={handleFeedbackSubmit} className="flex-2 bg-orange-500 text-white font-black py-3 px-8 rounded-xl shadow-lg shadow-orange-100 text-sm">SUBMIT REVIEW</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* GUEST MODAL UI (Minified) */}
+      {isGuestModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl animate-in zoom-in">
+            <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-black">Issue Guest Pass</h2><button onClick={() => setIsGuestModalOpen(false)} className="text-slate-400 hover:rotate-90 transition-transform"><X/></button></div>
+            <form onSubmit={handleAddGuest} className="space-y-5">
+              <input required type="text" placeholder="Guest Name" value={guestFormData.guestName} onChange={(e) => setGuestFormData({...guestFormData, guestName: e.target.value})} className="w-full p-4 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-bold text-sm" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase">From</label><input required type="date" min={facultyLimits.minDate} max={facultyLimits.maxDate} value={guestFormData.validFrom} onChange={(e) => setGuestFormData({...guestFormData, validFrom: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
+                <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase">Till</label><input required type="date" min={facultyLimits.minDate} max={facultyLimits.maxDate} value={guestFormData.validTill} onChange={(e) => setGuestFormData({...guestFormData, validTill: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
+              </div>
+              <button type="submit" className="w-full bg-purple-600 text-white font-black py-4 rounded-xl shadow-lg shadow-purple-100 hover:bg-purple-700">GENERATE G-CODE</button>
+            </form>
           </div>
         </div>
       )}

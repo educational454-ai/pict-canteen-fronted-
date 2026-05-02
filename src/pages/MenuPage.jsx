@@ -38,6 +38,18 @@ const MenuPage = () => {
       feedback: false,
       cancelingOrderId: null
   });
+
+  const isVoucherActiveToday = (validFromValue, validTillValue, nowValue = new Date()) => {
+    const now = new Date(nowValue);
+    const validFrom = new Date(validFromValue);
+    const validTill = new Date(validTillValue);
+
+    now.setHours(0, 0, 0, 0);
+    validFrom.setHours(0, 0, 0, 0);
+    validTill.setHours(23, 59, 59, 999);
+
+    return now >= validFrom && now <= validTill;
+  };
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [facultyLimits, setFacultyLimits] = useState({ 
       minDate: new Date().toISOString().split('T')[0], 
@@ -291,7 +303,7 @@ const MenuPage = () => {
                         <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Order For</label>
                         <select value={selectedVoucher} onChange={(e) => setSelectedVoucher(e.target.value)} className="w-full p-2 border rounded-lg font-bold text-sm bg-slate-50 outline-none">
                             <option value={voucher}>My Voucher</option>
-                            {myGuests.filter(g => new Date() <= new Date(g.validTill) && g.isActive).map(g => <option key={g._id} value={g.voucherCode}>{g.guestName}</option>)}
+                            {myGuests.filter(g => isVoucherActiveToday(g.validFrom, g.validTill) && g.isActive).map(g => <option key={g._id} value={g.voucherCode}>{g.guestName}</option>)}
                         </select>
                      </div>
                    )}
@@ -347,7 +359,7 @@ const MenuPage = () => {
                             <td className="p-5 font-bold">{g.guestName}</td>
                             <td className="p-5 font-mono font-bold text-purple-600">{g.voucherCode}</td>
                             <td className="p-5 text-xs text-slate-500 font-medium">{new Date(g.validTill).toLocaleDateString('en-GB')}</td>
-                            <td className="p-5 text-center">{new Date() > new Date(g.validTill) ? <span className="text-red-500 font-bold bg-red-50 px-2 py-1 rounded text-[10px]">EXPIRED</span> : <span className="text-green-600 font-bold bg-green-50 px-2 py-1 rounded text-[10px]">ACTIVE</span>}</td>
+                            <td className="p-5 text-center">{isVoucherActiveToday(g.validFrom, g.validTill) ? <span className="text-green-600 font-bold bg-green-50 px-2 py-1 rounded text-[10px]">ACTIVE</span> : <span className="text-red-500 font-bold bg-red-50 px-2 py-1 rounded text-[10px]">EXPIRED</span>}</td>
                           </tr>
                         ))}
                       </tbody>

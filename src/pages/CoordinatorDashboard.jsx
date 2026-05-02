@@ -25,6 +25,26 @@ const isDateWithinVoucherRange = (dateValue, validFromValue, validTillValue) => 
   return current >= validFrom && current <= validTill;
 };
 
+const isVoucherExpiringToday = (validTillValue, todayValue = new Date()) => {
+  const today = new Date(todayValue);
+  const validTill = new Date(validTillValue);
+
+  today.setHours(0, 0, 0, 0);
+  validTill.setHours(0, 0, 0, 0);
+
+  return today.getTime() === validTill.getTime();
+};
+
+const isVoucherExpired = (validTillValue, nowValue = new Date()) => {
+  const now = new Date(nowValue);
+  const validTill = new Date(validTillValue);
+
+  now.setHours(0, 0, 0, 0);
+  validTill.setHours(23, 59, 59, 999);
+
+  return now > validTill;
+};
+
 const getUniqueOrdersById = (orderList) => {
   const uniqueMap = new Map();
   orderList.forEach((order) => {
@@ -582,8 +602,8 @@ const handleFileUpload = async (e) => {
                   <tbody className="divide-y divide-gray-50 text-sm">
                     {filteredFaculty.map((f) => {
                       // 🚀 NEW COORDINATOR FEATURE 1: Expiry Heatmap
-                      const isExpired = new Date() > new Date(f.validTill);
-                      const isExpiringToday = new Date().toDateString() === new Date(f.validTill).toDateString();
+                      const isExpired = isVoucherExpired(f.validTill);
+                      const isExpiringToday = isVoucherExpiringToday(f.validTill);
                       
                       return (
                       <tr key={f._id} className={`transition-all group ${isExpired ? 'opacity-60 bg-gray-50/30' : isExpiringToday ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-gray-50/50'}`}>
@@ -642,7 +662,7 @@ const handleFileUpload = async (e) => {
                         <td className="p-4 text-gray-500">{g.facultyId?.fullName}</td>
                         <td className="p-4 text-center font-mono font-bold text-purple-600">{g.voucherCode}</td>
                         <td className="p-4 text-center">{new Date(g.validTill).toLocaleDateString('en-GB')}</td>
-                        <td className="p-4 text-center">{new Date() > new Date(g.validTill) ? <span className="text-red-500 font-bold">Expired</span> : <span className="text-green-500 font-bold">Active</span>}</td>
+                        <td className="p-4 text-center">{isVoucherExpired(g.validTill) ? <span className="text-red-500 font-bold">Expired</span> : <span className="text-green-500 font-bold">Active</span>}</td>
                       </tr>
                     ))}
                   </tbody>

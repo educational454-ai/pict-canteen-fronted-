@@ -13,6 +13,18 @@ const formatExcelDateSafely = (excelDate) => {
   return d.toISOString().split('T')[0];
 };
 
+const isDateWithinVoucherRange = (dateValue, validFromValue, validTillValue) => {
+  const current = new Date(dateValue);
+  const validFrom = new Date(validFromValue);
+  const validTill = new Date(validTillValue);
+
+  current.setHours(0, 0, 0, 0);
+  validFrom.setHours(0, 0, 0, 0);
+  validTill.setHours(23, 59, 59, 999);
+
+  return current >= validFrom && current <= validTill;
+};
+
 const getUniqueOrdersById = (orderList) => {
   const uniqueMap = new Map();
   orderList.forEach((order) => {
@@ -86,9 +98,7 @@ const CoordinatorDashboard = () => {
   const totalExaminers = faculty.length;
   const now = new Date();
   const activeVouchers = faculty.filter(f => {
-    const validFrom = new Date(f.validFrom);
-    const validTill = new Date(f.validTill);
-    return now >= validFrom && now <= validTill;
+    return isDateWithinVoucherRange(now, f.validFrom, f.validTill);
   }).length;
   const pendingExpired = totalExaminers - activeVouchers;
 

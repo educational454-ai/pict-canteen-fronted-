@@ -14,8 +14,8 @@ const categorySchedules = {
   'Fasting Specials (Upvas)': { 
     start: 8, 
     end: 16, 
-    label: 'Available Mon, Thu, Sat', 
-    days: [1, 4, 6] 
+    label: 'Available Mon, Tue, Thu, Sat', 
+    days: [1, 2, 4, 6] 
   },
   'Lunch': { start: 12, end: 15, label: 'Available 12:00 PM - 3:00 PM' },
   'Dessert': { start: 7, end: 18, label: 'Available All Day' }

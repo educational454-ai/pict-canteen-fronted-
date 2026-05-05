@@ -8,8 +8,8 @@ import {
 import toast from 'react-hot-toast';
 
 const categorySchedules = {
-  'Breakfast': { start: 7, end: 11, label: 'Available 7:00 AM - 11:00 AM' },
-  'Beverages': { start: 8, end: 11, label: 'Available 8:00 AM - 11:00 AM' },
+  'Breakfast': { start: 7, end: 12, label: 'Available 7:00 AM - 12:00 PM' },
+  'Beverages': { start: 8, end: 12, label: 'Available 8:00 AM - 12:00 PM' },
   'Quick Bites': { start: 7, end: 18, label: 'Available 7:00 AM - 6:30 PM' },
   'Fasting Specials (Upvas)': { 
     start: 8, 

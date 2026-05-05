@@ -467,32 +467,14 @@ const handleMenuSubmit = async (e) => {
           <div className="gap-2 border-b mb-6 bg-white p-1.5 rounded-xl shadow-sm border inline-flex overflow-x-auto max-w-full">
               <button onClick={() => setActiveTab('orders')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800'}`}>Live Orders</button>
               <button onClick={() => setActiveTab('menu')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'menu' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-500 hover:text-slate-800'}`}>Menu Management</button>
+              <button onClick={() => setActiveTab('stats')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'stats' ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-500 hover:text-slate-800'}`}>Stats</button>
               <button onClick={() => setActiveTab('feedback')} className={`whitespace-nowrap px-6 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'feedback' ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100' : 'text-slate-500 hover:text-slate-800'}`}>Customer Feedback</button>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border p-6 min-h-150">
               {activeTab === 'orders' && (
                   <div className="animate-in fade-in duration-300">
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                         <div className="bg-slate-50 p-5 rounded-2xl border flex flex-col gap-3 shadow-inner">
-                            <div className="flex items-center gap-2 text-blue-600 mb-1"><PieChart size={18} /><h3 className="text-xs font-black uppercase tracking-widest">Category Sales</h3></div>
-                            <div className="grid grid-cols-2 gap-2">
-                               {Object.entries(categoryRevenue).map(([cat, rev]) => (
-                                 <div key={cat} className="bg-white p-2 rounded-lg border text-center shadow-sm"><p className="text-[9px] font-bold text-slate-400 uppercase">{cat}</p><p className="text-sm font-black text-slate-700">₹{rev}</p></div>
-                               ))}
-                            </div>
-                         </div>
-                         <div className="bg-slate-50 p-5 rounded-2xl border flex flex-col gap-3 shadow-inner col-span-1 lg:col-span-2">
-                            <div className="flex items-center gap-2 text-emerald-600"><ChefHat size={18} /><h3 className="text-xs font-black uppercase tracking-widest">Top 5 Popular Dishes</h3></div>
-                            <div className="flex flex-wrap gap-3">
-                                {popularItems.map(([name, qty]) => (
-                                  <div key={name} className="bg-white px-4 py-2 rounded-xl border flex items-center gap-3 shadow-sm transition-all"><span className="w-6 h-6 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-[10px] font-black">{qty}</span><span className="text-xs font-bold text-slate-700">{name}</span></div>
-                                ))}
-                            </div>
-                         </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-end gap-4 mb-8 bg-slate-50 p-5 rounded-2xl border shadow-inner">
+                      <div className="flex flex-wrap items-end gap-4 mb-6 bg-slate-50 p-5 rounded-2xl border shadow-inner">
                           {/* 🚀 NEW: Search Bar Integration */}
                           <div className="flex-1 min-w-62.5 relative">
                                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Search Orders</label>
@@ -607,6 +589,36 @@ const handleMenuSubmit = async (e) => {
           <div 
             key={item._id} 
             className={`border-2 p-3 rounded-xl flex flex-col justify-between bg-white group transition-all ${item.isAvailable !== false ? 'hover:border-blue-200 shadow-sm' : 'opacity-60 bg-slate-50'}`}
+
+              {activeTab === 'stats' && (
+                  <div className="animate-in fade-in duration-300 space-y-6">
+                      <div className="flex items-center justify-between gap-4">
+                          <div>
+                              <h2 className="text-xl font-black text-slate-800 tracking-tight">Sales Stats</h2>
+                              <p className="text-sm text-slate-500 mt-1">Category sales and popular dishes for the selected filters.</p>
+                          </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                         <div className="bg-slate-50 p-5 rounded-2xl border flex flex-col gap-3 shadow-inner">
+                            <div className="flex items-center gap-2 text-blue-600 mb-1"><PieChart size={18} /><h3 className="text-xs font-black uppercase tracking-widest">Category Sales</h3></div>
+                            <div className="grid grid-cols-2 gap-2">
+                               {Object.entries(categoryRevenue).map(([cat, rev]) => (
+                                 <div key={cat} className="bg-white p-2 rounded-lg border text-center shadow-sm"><p className="text-[9px] font-bold text-slate-400 uppercase">{cat}</p><p className="text-sm font-black text-slate-700">₹{rev}</p></div>
+                               ))}
+                            </div>
+                         </div>
+                         <div className="bg-slate-50 p-5 rounded-2xl border flex flex-col gap-3 shadow-inner col-span-1 lg:col-span-2">
+                            <div className="flex items-center gap-2 text-emerald-600"><ChefHat size={18} /><h3 className="text-xs font-black uppercase tracking-widest">Top 5 Popular Dishes</h3></div>
+                            <div className="flex flex-wrap gap-3">
+                                {popularItems.map(([name, qty]) => (
+                                  <div key={name} className="bg-white px-4 py-2 rounded-xl border flex items-center gap-3 shadow-sm transition-all"><span className="w-6 h-6 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-[10px] font-black">{qty}</span><span className="text-xs font-bold text-slate-700">{name}</span></div>
+                                ))}
+                            </div>
+                         </div>
+                      </div>
+                  </div>
+              )}
           >
               <div className="flex justify-between items-start mb-3">
                   <div className="overflow-hidden">

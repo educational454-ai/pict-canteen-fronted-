@@ -231,7 +231,7 @@ const MenuPage = () => {
       </header>
 
       {/* TABS */}
-      <div className="bg-white border-b sticky top-[56px] z-20 shadow-sm">
+      <div className="bg-white border-b sticky top-14 z-20 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 flex gap-8 overflow-x-auto no-scrollbar">
               <button onClick={() => setActiveTab('menu')} className={`py-4 text-xs font-black border-b-2 transition-all tracking-widest ${activeTab === 'menu' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400'}`}>MENU</button>
               {userRole === 'FACULTY' && <button onClick={() => setActiveTab('guests')} className={`py-4 text-xs font-black border-b-2 transition-all tracking-widest ${activeTab === 'guests' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-400'}`}>GUESTS</button>}
@@ -267,7 +267,7 @@ const MenuPage = () => {
                       </button>
 
                       {/* Smooth Content Area */}
-                      <div className={`transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[1000px] border-t p-4 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+                      <div className={`transition-all duration-300 ease-in-out ${isOpen ? 'max-h-250 border-t p-4 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-3">
                           {items.map(item => {
                              const isSelected = selections[category]?._id === item._id;

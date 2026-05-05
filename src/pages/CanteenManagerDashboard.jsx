@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import { Download, Printer, Plus, Edit, Trash2, LogOut, Utensils, CheckCircle2, XCircle, Power, PowerOff, Star, MessageSquare, PieChart, ChefHat, RefreshCw, Search, Check, X, Loader2 } from 'lucide-react'; 
@@ -66,7 +66,7 @@ const CanteenManagerDashboard = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [allFaculty, setAllFaculty] = useState([]);
   const [filterDept, setFilterDept] = useState('All Departments');
-  const [searchTerm, setSearchTerm] = useState(''); // 🚀 NEW: Search state
+  const [searchTerm, setSearchTerm] = useState(''); // ≡ƒÜÇ NEW: Search state
   const [isRefreshing, setIsRefreshing] = useState(false); 
   
   const todayStr = getLocalYYYYMMDD();
@@ -210,7 +210,7 @@ const CanteenManagerDashboard = () => {
       ? (feedbackOrders.reduce((sum, o) => sum + o.rating, 0) / feedbackOrders.length).toFixed(1) 
       : 0;
 
-  // 🚀 NEW: ACTION HANDLERS
+  // ≡ƒÜÇ NEW: ACTION HANDLERS
   const cancelOrder = async (orderId) => {
         if (actionLocks.cancelingOrderId || actionLocks.processingOrderId) return;
     if (window.confirm("Are you sure you want to permanently delete/cancel this order? It will be removed from reports.")) {
@@ -243,7 +243,7 @@ const handleMenuSubmit = async (e) => {
     // 1. Validation check
     const maxAllowedPrice = categoryPriceLimits[menuForm.category];
     if (maxAllowedPrice && Number(menuForm.price) > maxAllowedPrice) {
-        toast.error(`Max price for ${menuForm.category} is ₹${maxAllowedPrice}.`);
+        toast.error(`Max price for ${menuForm.category} is Γé╣${maxAllowedPrice}.`);
         return; 
     }
 
@@ -475,7 +475,7 @@ const handleMenuSubmit = async (e) => {
               {activeTab === 'orders' && (
                   <div className="animate-in fade-in duration-300">
                       <div className="flex flex-wrap items-end gap-4 mb-6 bg-slate-50 p-5 rounded-2xl border shadow-inner">
-                          {/* 🚀 NEW: Search Bar Integration */}
+                          {/* ≡ƒÜÇ NEW: Search Bar Integration */}
                           <div className="flex-1 min-w-62.5 relative">
                                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Search Orders</label>
                              <div className="relative">
@@ -512,10 +512,10 @@ const handleMenuSubmit = async (e) => {
                                               <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-md text-[10px] border border-slate-200 uppercase">{order.departmentId?.name || 'Unknown'}</span></td>
                                               <td className="py-4 px-6 text-slate-500 text-xs">{new Date(order.createdAt).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit'})}</td>
                                               <td className="py-4 px-6 text-slate-600 text-xs">{order.items?.map(i => `${i.itemName} (x${i.quantity})`).join(', ')}</td>
-                                              <td className="py-4 px-6 font-black text-emerald-600 text-base">₹{order.totalAmount}</td>
+                                              <td className="py-4 px-6 font-black text-emerald-600 text-base">Γé╣{order.totalAmount}</td>
                                               <td className="py-4 px-6 text-right">
                                                   <div className="flex gap-2 justify-end">
-                                                      {/* 🚀 FIXED ACTIONS: Cancel and Complete */}
+                                                      {/* ≡ƒÜÇ FIXED ACTIONS: Cancel and Complete */}
                                                                                                             <button disabled={!!actionLocks.cancelingOrderId || !!actionLocks.processingOrderId} onClick={() => cancelOrder(order._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed" title="Delete/Cancel Order">
                                                                                                                 {actionLocks.cancelingOrderId === order._id ? <Loader2 size={20} className="animate-spin"/> : <X size={20}/>} 
                                                                                                             </button>
@@ -558,7 +558,7 @@ const handleMenuSubmit = async (e) => {
                                               <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-md text-[10px] border border-slate-200 uppercase">{order.departmentId?.name || 'Unknown'}</span></td>
                                               <td className="py-4 px-6 text-slate-500 text-xs">{new Date(order.createdAt).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit'})}</td>
                                               <td className="py-4 px-6 text-slate-600 text-xs">{order.items?.map(i => `${i.itemName} (x${i.quantity})`).join(', ')}</td>
-                                              <td className="py-4 px-6 font-black text-emerald-600 text-base">₹{order.totalAmount}</td>
+                                              <td className="py-4 px-6 font-black text-emerald-600 text-base">Γé╣{order.totalAmount}</td>
                                               <td className="py-4 px-6 text-right">
                                                                                                     <button disabled={!!actionLocks.reprintingOrderId} onClick={() => handleReprint(order)} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all disabled:opacity-60 disabled:cursor-not-allowed" title="Reprint Receipt">
                                                                                                         {actionLocks.reprintingOrderId === order._id ? <Loader2 size={20} className="animate-spin"/> : <Printer size={20}/>} 
@@ -589,42 +589,12 @@ const handleMenuSubmit = async (e) => {
           <div 
             key={item._id} 
             className={`border-2 p-3 rounded-xl flex flex-col justify-between bg-white group transition-all ${item.isAvailable !== false ? 'hover:border-blue-200 shadow-sm' : 'opacity-60 bg-slate-50'}`}
-
-              {activeTab === 'stats' && (
-                  <div className="animate-in fade-in duration-300 space-y-6">
-                      <div className="flex items-center justify-between gap-4">
-                          <div>
-                              <h2 className="text-xl font-black text-slate-800 tracking-tight">Sales Stats</h2>
-                              <p className="text-sm text-slate-500 mt-1">Category sales and popular dishes for the selected filters.</p>
-                          </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                         <div className="bg-slate-50 p-5 rounded-2xl border flex flex-col gap-3 shadow-inner">
-                            <div className="flex items-center gap-2 text-blue-600 mb-1"><PieChart size={18} /><h3 className="text-xs font-black uppercase tracking-widest">Category Sales</h3></div>
-                            <div className="grid grid-cols-2 gap-2">
-                               {Object.entries(categoryRevenue).map(([cat, rev]) => (
-                                 <div key={cat} className="bg-white p-2 rounded-lg border text-center shadow-sm"><p className="text-[9px] font-bold text-slate-400 uppercase">{cat}</p><p className="text-sm font-black text-slate-700">₹{rev}</p></div>
-                               ))}
-                            </div>
-                         </div>
-                         <div className="bg-slate-50 p-5 rounded-2xl border flex flex-col gap-3 shadow-inner col-span-1 lg:col-span-2">
-                            <div className="flex items-center gap-2 text-emerald-600"><ChefHat size={18} /><h3 className="text-xs font-black uppercase tracking-widest">Top 5 Popular Dishes</h3></div>
-                            <div className="flex flex-wrap gap-3">
-                                {popularItems.map(([name, qty]) => (
-                                  <div key={name} className="bg-white px-4 py-2 rounded-xl border flex items-center gap-3 shadow-sm transition-all"><span className="w-6 h-6 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-[10px] font-black">{qty}</span><span className="text-xs font-bold text-slate-700">{name}</span></div>
-                                ))}
-                            </div>
-                         </div>
-                      </div>
-                  </div>
-              )}
           >
               <div className="flex justify-between items-start mb-3">
                   <div className="overflow-hidden">
                       <span className="text-[8px] font-black text-blue-500 uppercase tracking-tighter">{item.category}</span>
                       <h3 className="font-black text-base truncate pr-2" title={item.itemName}>{item.itemName}</h3>
-                      <p className="font-bold text-sm text-slate-600">₹{item.price}</p>
+                      <p className="font-bold text-sm text-slate-600">Γé╣{item.price}</p>
                   </div>
                   
                   {/* Actions moved to a compact row at the top-right or bottom */}

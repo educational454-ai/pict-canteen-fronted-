@@ -243,7 +243,7 @@ const handleMenuSubmit = async (e) => {
     // 1. Validation check
     const maxAllowedPrice = categoryPriceLimits[menuForm.category];
     if (maxAllowedPrice && Number(menuForm.price) > maxAllowedPrice) {
-        toast.error(`Max price for ${menuForm.category} is Γé╣${maxAllowedPrice}.`);
+        toast.error(`Max price for ${menuForm.category} is Rs. ${maxAllowedPrice}.`);
         return; 
     }
 
@@ -511,7 +511,7 @@ const handleMenuSubmit = async (e) => {
                                               <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-md text-[10px] border border-slate-200 uppercase">{order.departmentId?.name || 'Unknown'}</span></td>
                                               <td className="py-4 px-6 text-slate-500 text-xs">{new Date(order.createdAt).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit'})}</td>
                                               <td className="py-4 px-6 text-slate-600 text-xs">{order.items?.map(i => `${i.itemName} (x${i.quantity})`).join(', ')}</td>
-                                              <td className="py-4 px-6 font-black text-emerald-600 text-base">Γé╣{order.totalAmount}</td>
+                                              <td className="py-4 px-6 font-bold text-emerald-600 text-base font-mono tabular-nums">Rs. {order.totalAmount}</td>
                                               <td className="py-4 px-6 text-right">
                                                   <div className="flex gap-2 justify-end">
                                                       {/* ≡ƒÜÇ FIXED ACTIONS: Cancel and Complete */}
@@ -557,7 +557,7 @@ const handleMenuSubmit = async (e) => {
                                               <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-md text-[10px] border border-slate-200 uppercase">{order.departmentId?.name || 'Unknown'}</span></td>
                                               <td className="py-4 px-6 text-slate-500 text-xs">{new Date(order.createdAt).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit'})}</td>
                                               <td className="py-4 px-6 text-slate-600 text-xs">{order.items?.map(i => `${i.itemName} (x${i.quantity})`).join(', ')}</td>
-                                              <td className="py-4 px-6 font-black text-emerald-600 text-base">Γé╣{order.totalAmount}</td>
+                                              <td className="py-4 px-6 font-bold text-emerald-600 text-base font-mono tabular-nums">Rs. {order.totalAmount}</td>
                                               <td className="py-4 px-6 text-right">
                                                                                                     <button disabled={!!actionLocks.reprintingOrderId} onClick={() => handleReprint(order)} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all disabled:opacity-60 disabled:cursor-not-allowed" title="Reprint Receipt">
                                                                                                         {actionLocks.reprintingOrderId === order._id ? <Loader2 size={20} className="animate-spin"/> : <Printer size={20}/>} 
@@ -593,7 +593,7 @@ const handleMenuSubmit = async (e) => {
                   <div className="overflow-hidden">
                       <span className="text-[8px] font-black text-blue-500 uppercase tracking-tighter">{item.category}</span>
                       <h3 className="font-black text-base truncate pr-2" title={item.itemName}>{item.itemName}</h3>
-                      <p className="font-bold text-sm text-slate-600">Γé╣{item.price}</p>
+                      <p className="font-bold text-sm text-slate-600 font-mono tabular-nums">Rs. {item.price}</p>
                   </div>
                   
                   {/* Actions moved to a compact row at the top-right or bottom */}
